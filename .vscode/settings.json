@@ -15,5 +15,5 @@
     "jellyfinWindowsDataDir": "${env:LOCALAPPDATA}/jellyfin",
     "jellyfinLinuxDataDir": "$HOME/.local/share/jellyfin",
     // The name of the plugin
-    "pluginName": "Jellyfin.Plugin.Template",
+    "pluginName": "TheIntroDB",
 }

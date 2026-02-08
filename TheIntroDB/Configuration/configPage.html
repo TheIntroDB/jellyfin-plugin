@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>TheIntroDB</title>
+</head>
+<body>
+    <div id="TheIntroDbConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="TheIntroDbConfigForm">
+                    <div class="sectionTitleContainer flex align-items-center">
+                        <h2 class="sectionTitle">TheIntroDB</h2>
+                    </div>
+                    <p class="fieldDescription">Segment data (intro, recap, credits, preview) is fetched from <a href="https://theintrodb.org" target="_blank" rel="noopener noreferrer">TheIntroDB API</a> using each item's TMDB ID. Run the <strong>Media segment scan</strong> task to populate segments.</p>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ApiBaseUrl">API base URL</label>
+                        <input id="ApiBaseUrl" name="ApiBaseUrl" type="text" is="emby-input" placeholder="https://api.theintrodb.org/v1" />
+                        <div class="fieldDescription">TheIntroDB API base URL (default: https://api.theintrodb.org/v1)</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="ApiKey">API key (optional)</label>
+                        <input id="ApiKey" name="ApiKey" type="password" is="emby-input" autocomplete="off" />
+                        <div class="fieldDescription">Optional Bearer token; when set, your pending and accepted submissions are weighted higher in results.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableIntro" name="EnableIntro" type="checkbox" is="emby-checkbox" />
+                            <span>Provide intro segments</span>
+                        </label>
+                        <div class="fieldDescription">Include intro segments from TheIntroDB in Jellyfin media segments.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableRecap" name="EnableRecap" type="checkbox" is="emby-checkbox" />
+                            <span>Provide recap segments</span>
+                        </label>
+                        <div class="fieldDescription">Include recap segments from TheIntroDB.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableCredits" name="EnableCredits" type="checkbox" is="emby-checkbox" />
+                            <span>Provide credits (outro) segments</span>
+                        </label>
+                        <div class="fieldDescription">Include credits/outro segments from TheIntroDB.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnablePreview" name="EnablePreview" type="checkbox" is="emby-checkbox" />
+                            <span>Provide preview segments</span>
+                        </label>
+                        <div class="fieldDescription">Include preview segments from TheIntroDB.</div>
+                    </div>
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button">
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            (function () {
+                var pluginUniqueId = 'eb5d7894-8eef-4b36-aa6f-5d124e828ce1';
+
+                document.querySelector('#TheIntroDbConfigPage')
+                    .addEventListener('pageshow', function () {
+                        Dashboard.showLoadingMsg();
+                        ApiClient.getPluginConfiguration(pluginUniqueId).then(function (config) {
+                            document.querySelector('#ApiBaseUrl').value = config.ApiBaseUrl || 'https://api.theintrodb.org/v1';
+                            document.querySelector('#ApiKey').value = config.ApiKey || '';
+                            document.querySelector('#EnableIntro').checked = config.EnableIntro !== false;
+                            document.querySelector('#EnableRecap').checked = config.EnableRecap !== false;
+                            document.querySelector('#EnableCredits').checked = config.EnableCredits !== false;
+                            document.querySelector('#EnablePreview').checked = config.EnablePreview !== false;
+                            Dashboard.hideLoadingMsg();
+                        });
+                    });
+
+                document.querySelector('#TheIntroDbConfigForm')
+                    .addEventListener('submit', function (e) {
+                        e.preventDefault();
+                        Dashboard.showLoadingMsg();
+                        ApiClient.getPluginConfiguration(pluginUniqueId).then(function (config) {
+                            config.ApiBaseUrl = document.querySelector('#ApiBaseUrl').value || 'https://api.theintrodb.org/v1';
+                            config.ApiKey = document.querySelector('#ApiKey').value || '';
+                            config.EnableIntro = document.querySelector('#EnableIntro').checked;
+                            config.EnableRecap = document.querySelector('#EnableRecap').checked;
+                            config.EnableCredits = document.querySelector('#EnableCredits').checked;
+                            config.EnablePreview = document.querySelector('#EnablePreview').checked;
+                            ApiClient.updatePluginConfiguration(pluginUniqueId, config).then(function (result) {
+                                Dashboard.processPluginConfigurationUpdateResult(result);
+                            });
+                        });
+                        return false;
+                    });
+            })();
+        </script>
+    </div>
+</body>
+</html>

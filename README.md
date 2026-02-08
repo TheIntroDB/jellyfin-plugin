@@ -1,3 +1,16 @@
+# TheIntroDB – Jellyfin Plugin
+
+This plugin integrates [TheIntroDB API](https://api.theintrodb.org) with Jellyfin’s **Media Segments** feature. It fetches intro, recap, credits, and preview timestamps by TMDB ID and exposes them as Jellyfin media segments so clients can show skip buttons.
+
+**Requirements:** Jellyfin 10.10+ (Media Segments), library items with TMDB IDs.
+
+**Setup:**
+1. Install the plugin and restart Jellyfin.
+2. In **Dashboard → Plugins → TheIntroDB**, set the API base URL (default `https://api.theintrodb.org/v1`) and optionally an API key. Enable/disable segment types as needed.
+3. Run **Dashboard → Scheduled Tasks → Media segment scan** to populate segments. Clients will then receive segments for playback (e.g. skip intro/credits).
+
+---
+
 # So you want to make a Jellyfin plugin
 
 Awesome! This guide is for you. Jellyfin plugins are written using the dotnet standard framework. What that means is you can write them in any language that implements the CLI or the DLI and can compile to net8.0. The examples on this page are in C# because that is what most of Jellyfin is written in, but F#, Visual Basic, and IronPython should all be compatible once compiled.
@@ -18,7 +31,7 @@ Awesome! This guide is for you. Jellyfin plugins are written using the dotnet st
 
 We have a number of quickstart options available to speed you along the way.
 
-- [Download the Example Plugin Project](https://github.com/jellyfin/jellyfin-plugin-template/tree/master/Jellyfin.Plugin.Template) from this repository, open it in your IDE and go to [step 3](https://github.com/jellyfin/jellyfin-plugin-template#3-customize-plugin-information)
+- [Download the Example Plugin Project](https://github.com/jellyfin/jellyfin-plugin-template/tree/master/TheIntroDB) from this repository, open it in your IDE and go to [step 3](https://github.com/jellyfin/jellyfin-plugin-template#3-customize-plugin-information)
 
 - Install our dotnet template by [downloading the dotnet-template/content folder from this repo](https://github.com/jellyfin/jellyfin-plugin-template/tree/master/dotnet-template/content) or off of Nuget (Coming soon)
 
@@ -246,7 +259,7 @@ This example expects you to clone `jellyfin`, `jellyfin-web` and `jellyfin-plugi
         // ${env:LOCALAPPDATA}/jellyfin
         "jellyfinDataDir" : "${env:LOCALAPPDATA}/jellyfin",
         // The name of the plugin
-        "pluginName" : "Jellyfin.Plugin.Template",
+        "pluginName" : "TheIntroDB",
     }
    ```
 
