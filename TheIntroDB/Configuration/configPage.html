@@ -12,7 +12,7 @@
                     <div class="sectionTitleContainer flex align-items-center">
                         <h2 class="sectionTitle">TheIntroDB</h2>
                     </div>
-                    <p class="fieldDescription">Segment data (intro, recap, credits, preview) is fetched from <a href="https://theintrodb.org" target="_blank" rel="noopener noreferrer">TheIntroDB API</a> using each item's TMDB ID. Run the <strong>Media segment scan</strong> task to populate segments.</p>
+                    <p class="fieldDescription">Segment data (intro, recap, credits, preview) is fetched from <a href="https://theintrodb.org" target="_blank" rel="noopener noreferrer">TheIntroDB API</a> using each item's TMDB ID when available, or falling back to its IMDB ID. Run the <strong>Media segment scan</strong> task to populate segments.</p>
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="ApiBaseUrl">API base URL</label>
                         <input id="ApiBaseUrl" name="ApiBaseUrl" type="text" is="emby-input" placeholder="https://api.theintrodb.org/v1" />

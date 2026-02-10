@@ -66,6 +66,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         }
 
         int? tmdbId = null;
+        string? imdbId = null;
         bool isMovie = false;
         int? season = null;
         int? episode = null;
@@ -74,15 +75,17 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         {
             isMovie = true;
             tmdbId = GetTmdbId(movie);
+            imdbId = GetImdbId(movie);
         }
         else if (item is Episode ep)
         {
             tmdbId = GetTmdbId(ep.Series);
+            imdbId = GetImdbId(ep) ?? GetImdbId(ep.Series);
             season = ep.ParentIndexNumber;
             episode = ep.IndexNumber;
         }
 
-        if (!tmdbId.HasValue || tmdbId.Value <= 0)
+        if ((!tmdbId.HasValue || tmdbId.Value <= 0) && string.IsNullOrWhiteSpace(imdbId))
         {
             return Array.Empty<MediaSegmentDto>();
         }
@@ -93,7 +96,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         }
 
         var client = new TheIntroDbClient(_httpClient, _plugin);
-        var media = await client.GetMediaAsync(tmdbId.Value, isMovie, season, episode, cancellationToken).ConfigureAwait(false);
+        var media = await client.GetMediaAsync(tmdbId, imdbId, isMovie, season, episode, cancellationToken).ConfigureAwait(false);
         if (media is null)
         {
             return Array.Empty<MediaSegmentDto>();
@@ -142,6 +145,21 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         if (item.ProviderIds.TryGetValue("Tmdb", out var id) && !string.IsNullOrWhiteSpace(id))
         {
             return int.TryParse(id, out var n) ? n : null;
+        }
+
+        return null;
+    }
+
+    private static string? GetImdbId(BaseItem item)
+    {
+        if (item?.ProviderIds is null)
+        {
+            return null;
+        }
+
+        if (item.ProviderIds.TryGetValue("Imdb", out var id) && !string.IsNullOrWhiteSpace(id))
+        {
+            return id;
         }
 
         return null;

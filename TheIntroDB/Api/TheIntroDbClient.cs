@@ -27,16 +27,18 @@ public class TheIntroDbClient
     }
 
     /// <summary>
-    /// Fetches media segment timestamps for the given TMDB id (movie) or episode.
+    /// Fetches media segment timestamps for the given TMDB id or IMDB id (movie) or episode.
     /// </summary>
-    /// <param name="tmdbId">TMDB ID of the movie or series.</param>
+    /// <param name="tmdbId">Optional TMDB ID of the movie or series.</param>
+    /// <param name="imdbId">Optional IMDB ID of the movie or episode (tt[0-9]{7,8}). Used when no TMDB ID is available.</param>
     /// <param name="isMovie">True for movie, false for TV episode.</param>
     /// <param name="season">Season number (required for TV).</param>
     /// <param name="episode">Episode number (required for TV).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Media response or null if not found or error.</returns>
     public async Task<MediaResponse?> GetMediaAsync(
-        int tmdbId,
+        int? tmdbId,
+        string? imdbId,
         bool isMovie,
         int? season,
         int? episode,
@@ -45,9 +47,29 @@ public class TheIntroDbClient
         var config = _plugin.Configuration ?? new PluginConfiguration();
         var baseUrl = (config.ApiBaseUrl ?? "https://api.theintrodb.org/v1").TrimEnd('/');
 
-        var query = isMovie
-            ? $"?tmdb_id={tmdbId}"
-            : $"?tmdb_id={tmdbId}&season={season}&episode={episode}";
+        var tmdbIdValue = tmdbId.GetValueOrDefault();
+        var hasTmdb = tmdbIdValue > 0;
+        var hasImdb = !string.IsNullOrWhiteSpace(imdbId);
+
+        if (!hasTmdb && !hasImdb)
+        {
+            return null;
+        }
+
+        string query;
+        if (hasTmdb)
+        {
+            query = isMovie
+                ? $"?tmdb_id={tmdbIdValue}"
+                : $"?tmdb_id={tmdbIdValue}&season={season}&episode={episode}";
+        }
+        else
+        {
+            var encodedImdb = Uri.EscapeDataString(imdbId!);
+            query = isMovie
+                ? $"?imdb_id={encodedImdb}"
+                : $"?imdb_id={encodedImdb}&season={season}&episode={episode}";
+        }
 
         var requestUri = new Uri(baseUrl + "/media" + query, UriKind.Absolute);
         using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
