@@ -9,6 +9,15 @@ This plugin integrates [TheIntroDB API](https://api.theintrodb.org) with Jellyfi
 2. In **Dashboard → Plugins → TheIntroDB**, set the API base URL (default `https://api.theintrodb.org/v1`) and optionally an API key. Enable/disable segment types as needed.
 3. Run **Dashboard → Scheduled Tasks → Media segment scan** to populate segments. Clients will then receive segments for playback (e.g. skip intro/credits).
 
+**Important:** Segments are **not** fetched when you press play. They are filled when the **Media segment scan** task runs (manually or on its schedule). Until that task has run for your library, skip intro/outro will not appear.
+
+**Troubleshooting (no segments):**
+- Run **Dashboard → Scheduled Tasks → Media segment scan** and wait for it to finish.
+- Ensure library items have **TMDB** or **IMDB** provider IDs (e.g. from metadata / TMDB plugin). The plugin does nothing for items without these IDs.
+- For TV: episodes must have season and episode numbers.
+- If you use an API key, check it is correct; otherwise the API may return no data.
+- Confirm at least one segment type (intro, recap, credits, preview) is enabled in the plugin settings.
+
 ---
 
 # So you want to make a Jellyfin plugin
