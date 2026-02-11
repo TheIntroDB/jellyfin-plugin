@@ -12,18 +12,12 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public PluginConfiguration()
     {
-        ApiBaseUrl = "https://api.theintrodb.org/v1";
         ApiKey = string.Empty;
         EnableIntro = true;
         EnableRecap = true;
         EnableCredits = true;
         EnablePreview = true;
     }
-
-    /// <summary>
-    /// Gets or sets the TheIntroDB API base URL (e.g. https://api.theintrodb.org/v1).
-    /// </summary>
-    public string ApiBaseUrl { get; set; }
 
     /// <summary>
     /// Gets or sets the optional API key for TheIntroDB (Bearer token). When set, your pending and accepted submissions are weighted higher.

@@ -45,7 +45,7 @@ public class TheIntroDbClient
         CancellationToken cancellationToken)
     {
         var config = _plugin.Configuration ?? new PluginConfiguration();
-        var baseUrl = (config.ApiBaseUrl ?? "https://api.theintrodb.org/v1").TrimEnd('/');
+        const string baseUrl = "https://api.theintrodb.org/v1";
 
         var tmdbIdValue = tmdbId.GetValueOrDefault();
         var hasTmdb = tmdbIdValue > 0;

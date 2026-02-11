@@ -14,11 +14,6 @@
                     </div>
                     <p class="fieldDescription">Segment data (intro, recap, credits, preview) is fetched from <a href="https://theintrodb.org" target="_blank" rel="noopener noreferrer">TheIntroDB API</a> using each item's TMDB or IMDB ID. Segments are <strong>not</strong> loaded when you press play—run <strong>Dashboard → Scheduled Tasks → Media segment scan</strong> to populate them. Items need TMDB/IMDB IDs (e.g. from metadata) for the plugin to find segments.</p>
                     <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="ApiBaseUrl">API base URL</label>
-                        <input id="ApiBaseUrl" name="ApiBaseUrl" type="text" is="emby-input" placeholder="https://api.theintrodb.org/v1" />
-                        <div class="fieldDescription">TheIntroDB API base URL (default: https://api.theintrodb.org/v1)</div>
-                    </div>
-                    <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="ApiKey">API key (optional)</label>
                         <input id="ApiKey" name="ApiKey" type="password" is="emby-input" autocomplete="off" />
                         <div class="fieldDescription">Optional Bearer token; when set, your pending and accepted submissions are weighted higher in results.</div>
@@ -67,7 +62,6 @@
                     .addEventListener('pageshow', function () {
                         Dashboard.showLoadingMsg();
                         ApiClient.getPluginConfiguration(pluginUniqueId).then(function (config) {
-                            document.querySelector('#ApiBaseUrl').value = config.ApiBaseUrl || 'https://api.theintrodb.org/v1';
                             document.querySelector('#ApiKey').value = config.ApiKey || '';
                             document.querySelector('#EnableIntro').checked = config.EnableIntro !== false;
                             document.querySelector('#EnableRecap').checked = config.EnableRecap !== false;
@@ -82,7 +76,6 @@
                         e.preventDefault();
                         Dashboard.showLoadingMsg();
                         ApiClient.getPluginConfiguration(pluginUniqueId).then(function (config) {
-                            config.ApiBaseUrl = document.querySelector('#ApiBaseUrl').value || 'https://api.theintrodb.org/v1';
                             config.ApiKey = document.querySelector('#ApiKey').value || '';
                             config.EnableIntro = document.querySelector('#EnableIntro').checked;
                             config.EnableRecap = document.querySelector('#EnableRecap').checked;
