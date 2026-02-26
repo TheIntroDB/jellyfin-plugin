@@ -17,6 +17,7 @@ public class PluginConfiguration : BasePluginConfiguration
         EnableRecap = true;
         EnableCredits = true;
         EnablePreview = true;
+        IgnoreMediaWithExistingSegments = true;
     }
 
     /// <summary>
@@ -43,4 +44,10 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets a value indicating whether to provide preview segments from TheIntroDB.
     /// </summary>
     public bool EnablePreview { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to skip API requests for media that already has segments.
+    /// When enabled (default), items with existing segments are not refetched from TheIntroDB, saving API rate limit.
+    /// </summary>
+    public bool IgnoreMediaWithExistingSegments { get; set; }
 }

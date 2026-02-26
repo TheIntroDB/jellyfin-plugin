@@ -46,6 +46,13 @@
                         </label>
                         <div class="fieldDescription">Include preview segments from TheIntroDB.</div>
                     </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="IgnoreMediaWithExistingSegments" name="IgnoreMediaWithExistingSegments" type="checkbox" is="emby-checkbox" />
+                            <span>Ignore media that already has segments</span>
+                        </label>
+                        <div class="fieldDescription">When enabled, items that already have segments are skipped to avoid refetching.</div>
+                    </div>
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                             <span>Save</span>
@@ -67,6 +74,7 @@
                             document.querySelector('#EnableRecap').checked = config.EnableRecap !== false;
                             document.querySelector('#EnableCredits').checked = config.EnableCredits !== false;
                             document.querySelector('#EnablePreview').checked = config.EnablePreview !== false;
+                            document.querySelector('#IgnoreMediaWithExistingSegments').checked = config.IgnoreMediaWithExistingSegments !== false;
                             Dashboard.hideLoadingMsg();
                         });
                     });
@@ -81,6 +89,7 @@
                             config.EnableRecap = document.querySelector('#EnableRecap').checked;
                             config.EnableCredits = document.querySelector('#EnableCredits').checked;
                             config.EnablePreview = document.querySelector('#EnablePreview').checked;
+                            config.IgnoreMediaWithExistingSegments = document.querySelector('#IgnoreMediaWithExistingSegments').checked;
                             ApiClient.updatePluginConfiguration(pluginUniqueId, config).then(function (result) {
                                 Dashboard.processPluginConfigurationUpdateResult(result);
                             });

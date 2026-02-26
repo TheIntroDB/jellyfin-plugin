@@ -25,6 +25,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILibraryManager _libraryManager;
+    private readonly IMediaSegmentManager _mediaSegmentManager;
     private readonly ILogger<TheIntroDbSegmentProvider> _logger;
 
     /// <summary>
@@ -32,14 +33,17 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
     /// </summary>
     /// <param name="httpClientFactory">HTTP client factory for API requests.</param>
     /// <param name="libraryManager">Library manager to resolve items.</param>
+    /// <param name="mediaSegmentManager">Media segment manager to check existing segments.</param>
     /// <param name="logger">Logger instance.</param>
     public TheIntroDbSegmentProvider(
         IHttpClientFactory httpClientFactory,
         ILibraryManager libraryManager,
+        IMediaSegmentManager mediaSegmentManager,
         ILogger<TheIntroDbSegmentProvider> logger)
     {
         _httpClientFactory = httpClientFactory;
         _libraryManager = libraryManager;
+        _mediaSegmentManager = mediaSegmentManager;
         _logger = logger;
         _logger.LogInformation("TheIntroDB segment provider constructed");
     }
@@ -104,6 +108,12 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         if (!isMovie && (!season.HasValue || !episode.HasValue))
         {
             _logger.LogWarning("Early exit: TV episode missing season/episode for {Name}", item.Name);
+            return Array.Empty<MediaSegmentDto>();
+        }
+
+        if (config.IgnoreMediaWithExistingSegments && _mediaSegmentManager.HasSegments(request.ItemId))
+        {
+            _logger.LogDebug("Skipping {Name}: already has segments (IgnoreMediaWithExistingSegments enabled)", item.Name);
             return Array.Empty<MediaSegmentDto>();
         }
 
