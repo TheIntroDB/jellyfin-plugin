@@ -31,6 +31,8 @@ This plugin integrates [TheIntroDB API](https://api.theintrodb.org) with Jellyfi
 
 ### Option B: Manual install
 
+It's recommended to use the repository. Manual installations don't automatically update!
+
 1. Download the latest plugin from the [Releases](https://github.com/TheIntroDB/jellyfin-plugin/releases) page.
 2. Extract `TheIntroDB.zip` into your Jellyfin plugins folder:
    - **Linux/macOS:** `~/.local/share/jellyfin/plugins/` or `$HOME/Library/Application Support/jellyfin/plugins/`
