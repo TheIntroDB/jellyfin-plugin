@@ -6,15 +6,6 @@
     "overview": "Adds skip segments for intros, recaps, credits, and previews from TheIntroDB's API.",
     "owner": "TheIntroDB",
     "category": "General",
-    "versions": [
-      {
-        "version": "1.0.0.0",
-        "changelog": "**Full Changelog**: https://github.com/TheIntroDB/jellyfin-plugin/commits/1.0.0.0\n",
-        "targetAbi": "10.9.0.0",
-        "sourceUrl": "https://github.com/TheIntroDB/jellyfin-plugin/releases/download/1.0.0.0/theintrodb_1.0.0.0.zip",
-        "checksum": "9d3fefc829adf8ce3d950eb9c2b777de",
-        "timestamp": "2026-02-26T17:19:59Z"
-      }
-    ]
+    "versions": []
   }
 ]
