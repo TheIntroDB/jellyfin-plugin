@@ -10,9 +10,17 @@ namespace TheIntroDB.Api;
 
 /// <summary>
 /// HTTP client for TheIntroDB API (GET /media).
+/// Rate limit: ~30 requests per 10 seconds (per IP). We throttle to stay under this.
 /// </summary>
 public class TheIntroDbClient
 {
+    private const int MaxRequestsPerWindow = 30;
+    private static readonly TimeSpan RateLimitWindow = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan MinDelayBetweenRequests = TimeSpan.FromMilliseconds(RateLimitWindow.TotalMilliseconds / MaxRequestsPerWindow);
+
+    private static readonly SemaphoreSlim RateLimitLock = new(1, 1);
+    private static DateTime _lastRequestUtc = DateTime.MinValue;
+
     private readonly HttpClient _httpClient;
     private readonly Plugin _plugin;
     private readonly ILogger _logger;
@@ -87,6 +95,7 @@ public class TheIntroDbClient
 
         try
         {
+            await WaitForRateLimitAsync(cancellationToken).ConfigureAwait(false);
             using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
             _logger.LogInformation("TheIntroDB API response: StatusCode={StatusCode} for {Uri}", response.StatusCode, requestUri);
             if (!response.IsSuccessStatusCode)
@@ -110,6 +119,30 @@ public class TheIntroDbClient
         {
             _logger.LogError(ex, "TheIntroDB API request failed for {Uri}", requestUri);
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Waits if necessary to respect the API rate limit (30 requests per 10 seconds).
+    /// </summary>
+    private static async Task WaitForRateLimitAsync(CancellationToken cancellationToken)
+    {
+        await RateLimitLock.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var now = DateTime.UtcNow;
+            var elapsed = now - _lastRequestUtc;
+            if (elapsed < MinDelayBetweenRequests)
+            {
+                var waitTime = MinDelayBetweenRequests - elapsed;
+                await Task.Delay(waitTime, cancellationToken).ConfigureAwait(false);
+            }
+
+            _lastRequestUtc = DateTime.UtcNow;
+        }
+        finally
+        {
+            RateLimitLock.Release();
         }
     }
 }
