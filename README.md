@@ -60,6 +60,14 @@ Easiest way to install:
 `https://www.iamparadox.dev/jellyfin/plugins/manifest.json`
 - Find "File Transformation" in the Catalog and install it.
 
+## Configuration
+
+TheIntroDB plugin includes some configuration options to adjust and improve your experience.
+
+- **API Key**: You can enter your TheIntroDB API key to fetch your submissions even if they're still pending and prioritize yours in the averaging calculation.
+- **Segment Toggles**: (All enabled by default) You can disable each segment individually so they're not applied when fetching.
+- **Ignore Media That Already Has Segments**: (Enabled by default) Prevent refetching of media that already has segments. This is recommended for large libraries.
+
 ---
 
 ## Development
