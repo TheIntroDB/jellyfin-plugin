@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Text.Json.Serialization;
 
 namespace TheIntroDB.Api;
@@ -32,26 +33,30 @@ public class MediaResponse
     public int? Episode { get; set; }
 
     /// <summary>
-    /// Gets or sets the intro segment (always present, may have null values).
+    /// Gets the intro segments (always present, may have null values).
     /// </summary>
     [JsonPropertyName("intro")]
-    public SegmentTimestamp? Intro { get; set; }
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public Collection<SegmentTimestamp> Intro { get; } = new();
 
     /// <summary>
-    /// Gets or sets the recap segment (always present, may have null values).
+    /// Gets the recap segments (always present, may have null values).
     /// </summary>
     [JsonPropertyName("recap")]
-    public SegmentTimestamp? Recap { get; set; }
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public Collection<SegmentTimestamp> Recap { get; } = new();
 
     /// <summary>
-    /// Gets or sets the credits segment (always present, may have null values).
+    /// Gets the credits segments (always present, may have null values).
     /// </summary>
     [JsonPropertyName("credits")]
-    public SegmentTimestamp? Credits { get; set; }
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public Collection<SegmentTimestamp> Credits { get; } = new();
 
     /// <summary>
-    /// Gets or sets the preview segment (always present, may have null values).
+    /// Gets the preview segments (always present, may have null values).
     /// </summary>
     [JsonPropertyName("preview")]
-    public SegmentTimestamp? Preview { get; set; }
+    [JsonObjectCreationHandling(JsonObjectCreationHandling.Populate)]
+    public Collection<SegmentTimestamp> Preview { get; } = new();
 }

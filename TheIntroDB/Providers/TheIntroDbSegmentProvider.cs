@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,6 +12,7 @@ using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaSegments;
 using MediaBrowser.Model;
 using MediaBrowser.Model.MediaSegments;
+using Microsoft.Extensions.Logging;
 using TheIntroDB.Api;
 using TheIntroDB.Configuration;
 
@@ -21,47 +23,53 @@ namespace TheIntroDB.Providers;
 /// </summary>
 public class TheIntroDbSegmentProvider : IMediaSegmentProvider
 {
-    private readonly HttpClient _httpClient;
-    private readonly Plugin _plugin;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILibraryManager _libraryManager;
+    private readonly ILogger<TheIntroDbSegmentProvider> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TheIntroDbSegmentProvider"/> class.
     /// </summary>
-    /// <param name="httpClient">HTTP client for API requests.</param>
-    /// <param name="plugin">The plugin instance for configuration.</param>
+    /// <param name="httpClientFactory">HTTP client factory for API requests.</param>
     /// <param name="libraryManager">Library manager to resolve items.</param>
+    /// <param name="logger">Logger instance.</param>
     public TheIntroDbSegmentProvider(
-        HttpClient httpClient,
-        Plugin plugin,
-        ILibraryManager libraryManager)
+        IHttpClientFactory httpClientFactory,
+        ILibraryManager libraryManager,
+        ILogger<TheIntroDbSegmentProvider> logger)
     {
-        _httpClient = httpClient;
-        _plugin = plugin;
+        _httpClientFactory = httpClientFactory;
         _libraryManager = libraryManager;
+        _logger = logger;
+        _logger.LogInformation("TheIntroDB segment provider constructed");
     }
 
     /// <inheritdoc />
-    public string Name => _plugin.Name ?? "TheIntroDB";
+    public string Name => Plugin.Instance?.Name ?? "TheIntroDB";
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<MediaSegmentDto>> GetMediaSegments(
         MediaSegmentGenerationRequest request,
         CancellationToken cancellationToken)
     {
-        if (request is null)
+        _logger.LogInformation("GetMediaSegments called for ItemId={ItemId}", request?.ItemId);
+
+        if (request is null || Plugin.Instance is null)
         {
+            _logger.LogWarning("Early exit: request or Plugin.Instance is null");
             return Array.Empty<MediaSegmentDto>();
         }
 
-        if (_plugin.Configuration is not PluginConfiguration config)
+        if (Plugin.Instance.Configuration is not PluginConfiguration config)
         {
+            _logger.LogWarning("Early exit: Plugin configuration is not PluginConfiguration");
             return Array.Empty<MediaSegmentDto>();
         }
 
         var item = _libraryManager.GetItemById(request.ItemId);
         if (item is null)
         {
+            _logger.LogWarning("Early exit: item not found for ItemId={ItemId}", request.ItemId);
             return Array.Empty<MediaSegmentDto>();
         }
 
@@ -76,6 +84,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             isMovie = true;
             tmdbId = GetTmdbId(movie);
             imdbId = GetImdbId(movie);
+            _logger.LogInformation("Movie: Name={Name}, TmdbId={TmdbId}, ImdbId={ImdbId}", item.Name, tmdbId, imdbId ?? "(none)");
         }
         else if (item is Episode ep)
         {
@@ -83,22 +92,28 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             imdbId = GetImdbId(ep) ?? GetImdbId(ep.Series);
             season = ep.ParentIndexNumber;
             episode = ep.IndexNumber;
+            _logger.LogInformation("Episode: Name={Name}, Series={Series}, S{Season}E{Episode}, TmdbId={TmdbId}, ImdbId={ImdbId}", item.Name, ep.SeriesName, season, episode, tmdbId, imdbId ?? "(none)");
         }
 
         if ((!tmdbId.HasValue || tmdbId.Value <= 0) && string.IsNullOrWhiteSpace(imdbId))
         {
+            _logger.LogWarning("Early exit: no TmdbId or ImdbId for {Name}", item.Name);
             return Array.Empty<MediaSegmentDto>();
         }
 
         if (!isMovie && (!season.HasValue || !episode.HasValue))
         {
+            _logger.LogWarning("Early exit: TV episode missing season/episode for {Name}", item.Name);
             return Array.Empty<MediaSegmentDto>();
         }
 
-        var client = new TheIntroDbClient(_httpClient, _plugin);
+        _logger.LogInformation("Fetching from TheIntroDB API: tmdbId={TmdbId}, imdbId={ImdbId}, isMovie={IsMovie}, season={Season}, episode={Episode}", tmdbId, imdbId, isMovie, season, episode);
+        var httpClient = _httpClientFactory.CreateClient();
+        var client = new TheIntroDbClient(httpClient, Plugin.Instance, _logger);
         var media = await client.GetMediaAsync(tmdbId, imdbId, isMovie, season, episode, cancellationToken).ConfigureAwait(false);
         if (media is null)
         {
+            _logger.LogInformation("TheIntroDB API returned no data for {Name}", item.Name);
             return Array.Empty<MediaSegmentDto>();
         }
 
@@ -126,13 +141,16 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             // Added
         }
 
+        _logger.LogInformation("Returning {Count} segments for {Name}", segments.Count, item.Name);
         return segments;
     }
 
     /// <inheritdoc />
     public ValueTask<bool> Supports(BaseItem item)
     {
-        return ValueTask.FromResult(item is Episode or Movie);
+        var supported = item is Episode or Movie;
+        _logger.LogDebug("Supports({Name}, {Type}): {Supported}", item?.Name ?? "null", item?.GetType().Name ?? "null", supported);
+        return ValueTask.FromResult(supported);
     }
 
     private static int? GetTmdbId(BaseItem item)
@@ -166,13 +184,14 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
     }
 
     private static bool AddSegment(
-        SegmentTimestamp? stamp,
+        IEnumerable<SegmentTimestamp>? stamps,
         bool endRequired,
         MediaSegmentType type,
         Guid itemId,
         long? runTimeTicks,
         List<MediaSegmentDto> segments)
     {
+        var stamp = stamps?.FirstOrDefault();
         if (stamp is null || !stamp.HasValidRange(endRequired))
         {
             return false;
