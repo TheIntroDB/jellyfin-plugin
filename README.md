@@ -13,9 +13,10 @@ This plugin integrates [TheIntroDB API](https://api.theintrodb.org) with Jellyfi
 ## Installation
 
 1. Download the latest plugin from the [Releases](https://github.com/TheIntroDB/jellyfin-plugin/releases) page.
-2. Extract `TheIntroDB.dll` into your Jellyfin plugins folder:
-   - **Linux/macOS:** `~/.local/share/jellyfin/plugins/TheIntroDB/` or `$HOME/Library/Application Support/jellyfin/plugins/TheIntroDB/`
-   - **Windows:** `%LocalAppData%\jellyfin\plugins\TheIntroDB\`
+2. Extract `TheIntroDB.zip` into your Jellyfin plugins folder:
+   - **Linux/macOS:** `~/.local/share/jellyfin/plugins/` or `$HOME/Library/Application Support/jellyfin/plugins/`
+   - **Windows:** `%LocalAppData%\jellyfin\plugins\`
+Ensure that `TheIntroDB/` folder contains `TheIntroDB.dll`
 3. Restart Jellyfin.
 4. Configure at **Dashboard → Plugins → TheIntroDB** (optional API key, enable/disable segment types).
 5. Run **Dashboard → Scheduled Tasks → Media Segment Scan** and click the **Play** button (▶) to populate segments. Skip intro/outro buttons will appear in clients once the scan has run for your library.
