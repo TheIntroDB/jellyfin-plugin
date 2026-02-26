@@ -15,9 +15,8 @@ This plugin integrates [TheIntroDB API](https://api.theintrodb.org) with Jellyfi
 ### Option A: Add repository (automatic updates)
 
 1. In Jellyfin: **Dashboard → Plugins → Repositories → Add**.
-2. Add this repository URL:  
-   `https://raw.githubusercontent.com/TheIntroDB/jellyfin-plugin/main/manifest.json`  
-   (Use `master` instead of `main` if that is your default branch.)
+2. Add this repository URL:
+   `https://raw.githubusercontent.com/TheIntroDB/jellyfin-plugin/main/manifest.json`
 3. Go to **Catalog** and install **TheIntroDB**.
 4. Jellyfin will notify you when updates are available.
 5. Configure at **Dashboard → Plugins → TheIntroDB** (optional API key, enable/disable segment types).
