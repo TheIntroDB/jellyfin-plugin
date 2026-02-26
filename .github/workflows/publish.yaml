@@ -78,7 +78,8 @@ jobs:
 
       - name: Prepare GH Release Assets
         run: |
-          for file in ./*; do
+          for file in ./*.zip; do
+            [ -f "$file" ] || continue
             md5sum "${file#./}" >> "${file%.*}.md5"
             sha256sum "${file#./}" >> "${file%.*}.sha256"
           done
@@ -89,3 +90,46 @@ jobs:
         with:
           upload_url: ${{ github.event.release.upload_url }}
           asset_path: ./*
+
+      - name: Extract checksum for manifest
+        id: manifest
+        run: |
+          CHECKSUM=$(awk '{print $1}' theintrodb_*.md5)
+          echo "checksum=$CHECKSUM" >> $GITHUB_OUTPUT
+
+      - name: Checkout repo for manifest update
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Update plugin manifest
+        run: |
+          VERSION="${{ needs.build.outputs.version }}"
+          TAG="${{ github.event.release.tag_name }}"
+          CHECKSUM="${{ steps.manifest.outputs.checksum }}"
+          SOURCE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/theintrodb_${VERSION}.zip"
+          CHANGELOG="${{ github.event.release.body || 'See release notes' }}"
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Escape changelog for JSON (replace newlines with \n)
+          CHANGELOG_JSON=$(echo "$CHANGELOG" | jq -Rs .)
+
+          # Add new version to manifest (prepend, dedupe by version)
+          jq --argjson v "{
+            \"version\": \"$VERSION\",
+            \"changelog\": $CHANGELOG_JSON,
+            \"targetAbi\": \"10.9.0.0\",
+            \"sourceUrl\": \"$SOURCE_URL\",
+            \"checksum\": \"$CHECKSUM\",
+            \"timestamp\": \"$TIMESTAMP\"
+          }" '.[0].versions = ([$v] + .[0].versions) | .[0].versions |= unique_by(.version)' manifest.json > manifest.json.tmp
+          mv manifest.json.tmp manifest.json
+
+      - name: Commit and push manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git diff --staged --quiet || git commit -m "chore: update manifest for v${{ needs.build.outputs.version }}"
+          git push

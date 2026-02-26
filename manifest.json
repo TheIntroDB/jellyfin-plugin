@@ -1,0 +1,11 @@
+[
+  {
+    "guid": "eb5d7894-8eef-4b36-aa6f-5d124e828ce1",
+    "name": "TheIntroDB",
+    "description": "Adds skip segments for intros, recaps, credits, and previews from TheIntroDB's API.\n",
+    "overview": "Adds skip segments for intros, recaps, credits, and previews from TheIntroDB's API.",
+    "owner": "TheIntroDB",
+    "category": "General",
+    "versions": []
+  }
+]

@@ -12,6 +12,19 @@ This plugin integrates [TheIntroDB API](https://api.theintrodb.org) with Jellyfi
 
 ## Installation
 
+### Option A: Add repository (automatic updates)
+
+1. In Jellyfin: **Dashboard → Plugins → Repositories → Add**.
+2. Add this repository URL:  
+   `https://raw.githubusercontent.com/TheIntroDB/jellyfin-plugin/main/manifest.json`  
+   (Use `master` instead of `main` if that is your default branch.)
+3. Go to **Catalog** and install **TheIntroDB**.
+4. Jellyfin will notify you when updates are available.
+5. Configure at **Dashboard → Plugins → TheIntroDB** (optional API key, enable/disable segment types).
+6. Run **Dashboard → Scheduled Tasks → Media Segment Scan** and click the **Play** button (▶) to populate segments.
+
+### Option B: Manual install
+
 1. Download the latest plugin from the [Releases](https://github.com/TheIntroDB/jellyfin-plugin/releases) page.
 2. Extract `TheIntroDB.zip` into your Jellyfin plugins folder:
    - **Linux/macOS:** `~/.local/share/jellyfin/plugins/` or `$HOME/Library/Application Support/jellyfin/plugins/`
