@@ -7,6 +7,15 @@
     "owner": "TheIntroDB",
     "imageUrl": "https://raw.githubusercontent.com/TheIntroDB/theintrodb-assets/main/logo-banner.png",
     "category": "General",
-    "versions": []
+    "versions": [
+      {
+        "version": "1.0.0.0",
+        "changelog": "Initial release\n",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://github.com/TheIntroDB/jellyfin-plugin/releases/download/1.0.0.0/theintrodb_1.0.0.0.zip",
+        "checksum": "d17c3331ab56b5d30f813b7c429302e5",
+        "timestamp": "2026-02-26T18:43:51Z"
+      }
+    ]
   }
 ]
