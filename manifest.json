@@ -5,6 +5,7 @@
     "description": "Adds skip segments for intros, recaps, credits, and previews from TheIntroDB's API.\n",
     "overview": "Adds skip segments for intros, recaps, credits, and previews from TheIntroDB's API.",
     "owner": "TheIntroDB",
+    "imageUrl": "https://raw.githubusercontent.com/TheIntroDB/theintrodb-assets/main/logo-banner.png",
     "category": "General",
     "versions": []
   }
