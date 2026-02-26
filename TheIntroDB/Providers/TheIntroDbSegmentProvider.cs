@@ -12,6 +12,7 @@ using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaSegments;
 using MediaBrowser.Model;
 using MediaBrowser.Model.MediaSegments;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using TheIntroDB.Api;
 using TheIntroDB.Configuration;
@@ -25,7 +26,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
 {
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILibraryManager _libraryManager;
-    private readonly IMediaSegmentManager _mediaSegmentManager;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<TheIntroDbSegmentProvider> _logger;
 
     /// <summary>
@@ -33,17 +34,17 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
     /// </summary>
     /// <param name="httpClientFactory">HTTP client factory for API requests.</param>
     /// <param name="libraryManager">Library manager to resolve items.</param>
-    /// <param name="mediaSegmentManager">Media segment manager to check existing segments.</param>
+    /// <param name="serviceProvider">Service provider for lazy resolution of IMediaSegmentManager (avoids circular dependency).</param>
     /// <param name="logger">Logger instance.</param>
     public TheIntroDbSegmentProvider(
         IHttpClientFactory httpClientFactory,
         ILibraryManager libraryManager,
-        IMediaSegmentManager mediaSegmentManager,
+        IServiceProvider serviceProvider,
         ILogger<TheIntroDbSegmentProvider> logger)
     {
         _httpClientFactory = httpClientFactory;
         _libraryManager = libraryManager;
-        _mediaSegmentManager = mediaSegmentManager;
+        _serviceProvider = serviceProvider;
         _logger = logger;
         _logger.LogInformation("TheIntroDB segment provider constructed");
     }
@@ -111,10 +112,14 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             return Array.Empty<MediaSegmentDto>();
         }
 
-        if (config.IgnoreMediaWithExistingSegments && _mediaSegmentManager.HasSegments(request.ItemId))
+        if (config.IgnoreMediaWithExistingSegments)
         {
-            _logger.LogDebug("Skipping {Name}: already has segments (IgnoreMediaWithExistingSegments enabled)", item.Name);
-            return Array.Empty<MediaSegmentDto>();
+            var segmentManager = _serviceProvider.GetRequiredService<IMediaSegmentManager>();
+            if (segmentManager.HasSegments(request.ItemId))
+            {
+                _logger.LogDebug("Skipping {Name}: already has segments (IgnoreMediaWithExistingSegments enabled)", item.Name);
+                return Array.Empty<MediaSegmentDto>();
+            }
         }
 
         _logger.LogInformation("Fetching from TheIntroDB API: tmdbId={TmdbId}, imdbId={ImdbId}, isMovie={IsMovie}, season={Season}, episode={Episode}", tmdbId, imdbId, isMovie, season, episode);
