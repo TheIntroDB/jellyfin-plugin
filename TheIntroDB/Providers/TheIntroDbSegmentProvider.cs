@@ -206,43 +206,53 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         long? runTimeTicks,
         List<MediaSegmentDto> segments)
     {
-        var stamp = stamps?.FirstOrDefault();
-        if (stamp is null || !stamp.HasValidRange(endRequired))
+        if (stamps is null)
         {
             return false;
         }
 
-        long startMs = stamp.StartMs ?? 0;
-        long endMs;
+        var added = false;
+        foreach (var stamp in stamps)
+        {
+            if (stamp is null || !stamp.HasValidRange(endRequired))
+            {
+                continue;
+            }
 
-        if (stamp.EndMs.HasValue && stamp.EndMs.Value > 0)
-        {
-            endMs = stamp.EndMs.Value;
-        }
-        else if (runTimeTicks.HasValue && runTimeTicks.Value > 0)
-        {
-            endMs = runTimeTicks.Value / TimeSpan.TicksPerMillisecond;
-        }
-        else
-        {
-            return false;
+            long startMs = stamp.StartMs ?? 0;
+            long endMs;
+
+            if (stamp.EndMs.HasValue && stamp.EndMs.Value > 0)
+            {
+                endMs = stamp.EndMs.Value;
+            }
+            else if (runTimeTicks.HasValue && runTimeTicks.Value > 0)
+            {
+                endMs = runTimeTicks.Value / TimeSpan.TicksPerMillisecond;
+            }
+            else
+            {
+                continue;
+            }
+
+            if (endMs <= startMs)
+            {
+                continue;
+            }
+
+            long startTicks = startMs * TimeSpan.TicksPerMillisecond;
+            long endTicks = endMs * TimeSpan.TicksPerMillisecond;
+
+            segments.Add(new MediaSegmentDto
+            {
+                StartTicks = startTicks,
+                EndTicks = endTicks,
+                ItemId = itemId,
+                Type = type
+            });
+            added = true;
         }
 
-        if (endMs <= startMs)
-        {
-            return false;
-        }
-
-        long startTicks = startMs * TimeSpan.TicksPerMillisecond;
-        long endTicks = endMs * TimeSpan.TicksPerMillisecond;
-
-        segments.Add(new MediaSegmentDto
-        {
-            StartTicks = startTicks,
-            EndTicks = endTicks,
-            ItemId = itemId,
-            Type = type
-        });
-        return true;
+        return added;
     }
 }
