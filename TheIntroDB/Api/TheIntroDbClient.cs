@@ -56,6 +56,14 @@ public class TheIntroDbClient
         int? episode,
         CancellationToken cancellationToken)
     {
+        if (DateTime.UtcNow < Plugin.RateLimitExpiryUtc)
+        {
+            _logger.LogWarning(
+                "TheIntroDB API rate limit is currently active. Skipping request. The rate limit will reset at {RateLimitExpiryUtc} UTC.",
+                Plugin.RateLimitExpiryUtc);
+            return null;
+        }
+
         var config = _plugin.Configuration ?? new PluginConfiguration();
         const string baseUrl = "https://api.theintrodb.org/v2";
 
@@ -98,6 +106,19 @@ public class TheIntroDbClient
             await WaitForRateLimitAsync(cancellationToken).ConfigureAwait(false);
             using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
             _logger.LogInformation("TheIntroDB API response: StatusCode={StatusCode} for {Uri}", response.StatusCode, requestUri);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            {
+                var retryAfterSeconds = GetRetryAfterSeconds(response.Headers);
+                Plugin.RateLimitExpiryUtc = DateTime.UtcNow.AddSeconds(retryAfterSeconds);
+                _logger.LogWarning(
+                    "TheIntroDB API rate limit exceeded. Will not send requests until {RateLimitExpiryUtc} UTC. Retry-after: {RetryAfterSeconds}s",
+                    Plugin.RateLimitExpiryUtc,
+                    retryAfterSeconds);
+
+                return null;
+            }
+
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -121,6 +142,28 @@ public class TheIntroDbClient
             return null;
         }
     }
+
+    private static int GetRetryAfterSeconds(HttpResponseHeaders headers)
+    {
+        if (headers.TryGetValues("X-UsageLimit-Reset", out var usageResetValues) && int.TryParse(usageResetValues.FirstOrDefault(), out var usageResetSeconds))
+        {
+            return usageResetSeconds;
+        }
+
+        if (headers.TryGetValues("X-RateLimit-Reset", out var rateResetValues) && int.TryParse(rateResetValues.FirstOrDefault(), out var rateResetSeconds))
+        {
+            return rateResetSeconds;
+        }
+
+        if (headers.RetryAfter?.Delta.HasValue ?? false)
+        {
+            return (int)headers.RetryAfter.Delta.Value.TotalSeconds;
+        }
+
+        // Default to a 5-minute wait if no header is present
+        return 300;
+    }
+
 
     /// <summary>
     /// Waits if necessary to respect the API rate limit (30 requests per 10 seconds).
