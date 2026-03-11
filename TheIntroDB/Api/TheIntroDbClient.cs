@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading;
@@ -163,7 +164,6 @@ public class TheIntroDbClient
         // Default to a 5-minute wait if no header is present
         return 300;
     }
-
 
     /// <summary>
     /// Waits if necessary to respect the API rate limit (30 requests per 10 seconds).

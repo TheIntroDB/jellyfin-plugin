@@ -13,8 +13,8 @@ namespace TheIntroDB;
 /// The main plugin.
 /// </summary>
 public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
-    {
-        internal static DateTime RateLimitExpiryUtc { get; set; }/// <summary>
+{
+    /// <summary>
     /// Initializes a new instance of the <see cref="Plugin"/> class.
     /// </summary>
     /// <param name="applicationPaths">Instance of the <see cref="IApplicationPaths"/> interface.</param>
@@ -35,6 +35,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// Gets the current plugin instance.
     /// </summary>
     public static Plugin? Instance { get; private set; }
+
+    internal static DateTime RateLimitExpiryUtc { get; set; }
 
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()
