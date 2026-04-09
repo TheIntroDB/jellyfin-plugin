@@ -101,6 +101,7 @@ public class TheIntroDbClient
         }
 
         request.Headers.TryAddWithoutValidation("Accept", "application/json");
+        request.Headers.TryAddWithoutValidation("User-Agent", "TheIntroDB Jellyfin Plugin");
 
         try
         {
