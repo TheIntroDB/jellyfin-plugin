@@ -42,6 +42,8 @@ Ensure that `TheIntroDB/` folder contains `TheIntroDB.dll`
 4. Configure at **Dashboard → Plugins → TheIntroDB** (optional API key, enable/disable segment types).
 5. Run **Dashboard → Scheduled Tasks → Media Segment Scan** and click the **Play** button (▶) to populate segments. Skip intro/outro buttons will appear in clients once the scan has run for your library.
 
+---
+
 ### Metadata Requirements
 
 **TMDb is recommended.** The plugin matches content by TMDb ID for best accuracy. Add the [TMDb](https://github.com/jellyfin/jellyfin-plugin-tmdb) metadata plugin and let it fill provider IDs for your library.
