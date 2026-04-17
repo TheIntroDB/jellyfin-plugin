@@ -46,7 +46,7 @@ Ensure that `TheIntroDB/` folder contains `TheIntroDB.dll`
 
 ### Metadata Requirements
 
-**TMDb is recommended.** The plugin matches content by TMDb ID for best accuracy. Add the [TMDb](https://github.com/jellyfin/jellyfin-plugin-tmdb) metadata plugin and let it fill provider IDs for your library.
+**TMDb is recommended.** The plugin matches content by TMDb ID for best accuracy. Please ensure you have your content metadata source set to TMDb.
 
 IMDb IDs work as a fallback but are less accurate for TV episodes. The plugin will use whichever IDs are available on your items.
 
