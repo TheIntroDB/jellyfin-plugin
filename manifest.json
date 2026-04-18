@@ -23,7 +23,7 @@
         "sourceUrl": "https://github.com/TheIntroDB/jellyfin-plugin/releases/download/1.0.1.0/theintrodb_1.0.1.0.zip",
         "checksum": "d17e0313435d5efc35b39e3837d57dfb",
         "timestamp": "2026-03-11T21:56:34Z"
-      }
+      },
       {
         "version": "1.0.0.0",
         "changelog": "Initial release\n",
