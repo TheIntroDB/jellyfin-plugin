@@ -20,18 +20,6 @@ public class SegmentTimestamp
     public long? EndMs { get; set; }
 
     /// <summary>
-    /// Gets or sets the confidence score 0–1, or null.
-    /// </summary>
-    [JsonPropertyName("confidence")]
-    public double? Confidence { get; set; }
-
-    /// <summary>
-    /// Gets or sets the number of submissions used.
-    /// </summary>
-    [JsonPropertyName("submission_count")]
-    public int SubmissionCount { get; set; }
-
-    /// <summary>
     /// Returns whether this segment has usable start and end (for intro/recap both required; for credits/preview start required).
     /// </summary>
     /// <param name="endRequired">True if end time is required (intro/recap).</param>
