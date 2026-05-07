@@ -115,7 +115,7 @@ jobs:
           # Escape changelog for JSON (replace newlines with \n)
           CHANGELOG_JSON=$(echo "$CHANGELOG" | jq -Rs .)
 
-          # Add new version to manifest (prepend, dedupe by version)
+          # Add new version to manifest (dedupe by version, sort newest-first)
           jq --argjson v "{
             \"version\": \"$VERSION\",
             \"changelog\": $CHANGELOG_JSON,
@@ -123,7 +123,14 @@ jobs:
             \"sourceUrl\": \"$SOURCE_URL\",
             \"checksum\": \"$CHECKSUM\",
             \"timestamp\": \"$TIMESTAMP\"
-          }" '.[0].versions = ([$v] + .[0].versions) | .[0].versions |= unique_by(.version)' manifest.json > manifest.json.tmp
+          }" '
+            def vkey:
+              (.version
+               | sub("^v";"")
+               | split(".")
+               | map(tonumber? // 0));
+            .[0].versions = ((.[0].versions + [$v]) | unique_by(.version) | sort_by(vkey) | reverse)
+          ' manifest.json > manifest.json.tmp
           mv manifest.json.tmp manifest.json
 
       - name: Commit and push manifest
