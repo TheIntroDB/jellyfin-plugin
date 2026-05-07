@@ -20,22 +20,19 @@ public class SegmentTimestamp
     public long? EndMs { get; set; }
 
     /// <summary>
-    /// Returns whether this segment has usable start and end (for intro/recap both required; for credits/preview start required).
+    /// Returns whether this segment has a usable time range.
+    /// For intro/recap, start is optional and end is required.
+    /// For credits/preview, start is required and end is optional.
     /// </summary>
     /// <param name="endRequired">True if end time is required (intro/recap).</param>
     /// <returns>True if the segment has a valid range.</returns>
     public bool HasValidRange(bool endRequired)
     {
-        if (StartMs is null)
-        {
-            return false;
-        }
-
         if (endRequired)
         {
             return EndMs.HasValue && EndMs.Value > (StartMs ?? 0);
         }
 
-        return true;
+        return StartMs.HasValue;
     }
 }

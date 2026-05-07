@@ -118,7 +118,9 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             if (segmentManager.HasSegments(request.ItemId))
             {
                 _logger.LogDebug("Skipping {Name}: already has segments (IgnoreMediaWithExistingSegments enabled)", item.Name);
-                return Array.Empty<MediaSegmentDto>();
+
+                // Return existing segments unchanged to prevent Jellyfin from deleting them.
+                return request.ExistingSegments.ToList();
             }
         }
 
