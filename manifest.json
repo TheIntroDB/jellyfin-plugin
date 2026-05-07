@@ -8,13 +8,13 @@
     "imageUrl": "https://raw.githubusercontent.com/TheIntroDB/theintrodb-assets/main/logo-banner.png",
     "category": "General",
     "versions": [
-       {
-        "version": "1.0.1.1",
-        "changelog": "## Changes made:\r\n* Added custom user agent to better identify requests coming from this plugin\r\n\r\n\r\n**Full Changelog**: https://github.com/TheIntroDB/jellyfin-plugin/compare/1.0.1.0...1.0.1.1\n",
+      {
+        "version": "1.0.0.0",
+        "changelog": "Initial release\n",
         "targetAbi": "10.9.0.0",
-        "sourceUrl": "https://github.com/TheIntroDB/jellyfin-plugin/releases/download/1.0.1.1/theintrodb_1.0.1.1.zip",
-        "checksum": "35c9072463d7cbde4c2c0fac81d77f4d",
-        "timestamp": "2026-04-09T17:47:59Z"
+        "sourceUrl": "https://github.com/TheIntroDB/jellyfin-plugin/releases/download/1.0.0.0/theintrodb_1.0.0.0.zip",
+        "checksum": "5e92510e71ca43223a92fc4a5ee83444",
+        "timestamp": "2026-02-26T18:51:11Z"
       },
       {
         "version": "1.0.1.0",
@@ -25,12 +25,20 @@
         "timestamp": "2026-03-11T21:56:34Z"
       },
       {
-        "version": "1.0.0.0",
-        "changelog": "Initial release\n",
+        "version": "1.0.1.1",
+        "changelog": "## Changes made:\r\n* Added custom user agent to better identify requests coming from this plugin\r\n\r\n\r\n**Full Changelog**: https://github.com/TheIntroDB/jellyfin-plugin/compare/1.0.1.0...1.0.1.1\n",
         "targetAbi": "10.9.0.0",
-        "sourceUrl": "https://github.com/TheIntroDB/jellyfin-plugin/releases/download/1.0.0.0/theintrodb_1.0.0.0.zip",
-        "checksum": "5e92510e71ca43223a92fc4a5ee83444",
-        "timestamp": "2026-02-26T18:51:11Z"
+        "sourceUrl": "https://github.com/TheIntroDB/jellyfin-plugin/releases/download/1.0.1.1/theintrodb_1.0.1.1.zip",
+        "checksum": "35c9072463d7cbde4c2c0fac81d77f4d",
+        "timestamp": "2026-04-09T17:47:59Z"
+      },
+      {
+        "version": "1.0.2.0",
+        "changelog": "## What's Changed\r\n* fix intro/recap start_ms can be null and fix delete existing segments by @bitxeno in https://github.com/TheIntroDB/jellyfin-plugin/pull/7\r\n\r\n## New Contributors\r\n* @bitxeno made their first contribution in https://github.com/TheIntroDB/jellyfin-plugin/pull/7\r\n\r\n**Full Changelog**: https://github.com/TheIntroDB/jellyfin-plugin/compare/1.0.1.1...v1.0.2.0\n",
+        "targetAbi": "10.9.0.0",
+        "sourceUrl": "https://github.com/TheIntroDB/jellyfin-plugin/releases/download/v1.0.2.0/theintrodb_1.0.2.0.zip",
+        "checksum": "7b4a40c50d3c6422c6a9e4d2ced23746",
+        "timestamp": "2026-05-07T17:21:49Z"
       }
     ]
   }
