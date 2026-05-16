@@ -45,6 +45,11 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
     internal static DateTime RateLimitExpiryUtc { get; set; }
 
+    internal static void TrackAnonymousUsageEvent(string eventName, Dictionary<string, object>? props = null)
+    {
+        AnonymousUsageReporter.TrackEvent(Instance, eventName, props);
+    }
+
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()
     {
@@ -160,12 +165,6 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             request.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
             using var response = await HttpClient.SendAsync(request).ConfigureAwait(false);
-        }
-
-        private static string? GetAppKey()
-        {
-            var key = AppKey;
-            return string.IsNullOrWhiteSpace(key) ? null : key.Trim();
         }
 
         private static Dictionary<string, object> MergeProps(Dictionary<string, object> baseProps, Dictionary<string, object>? extraProps)

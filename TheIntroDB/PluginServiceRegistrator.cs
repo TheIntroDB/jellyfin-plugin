@@ -16,5 +16,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
         serviceCollection.AddSingleton<IMediaSegmentProvider, TheIntroDbSegmentProvider>();
+        serviceCollection.AddHostedService<TheIntroDbUsageReportingService>();
     }
 }
