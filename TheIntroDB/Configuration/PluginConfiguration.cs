@@ -18,6 +18,7 @@ public class PluginConfiguration : BasePluginConfiguration
         EnableCredits = true;
         EnablePreview = true;
         IgnoreMediaWithExistingSegments = true;
+        EnableAnonymousUsageReporting = true;
     }
 
     /// <summary>
@@ -50,4 +51,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// When enabled (default), items with existing segments are not refetched from TheIntroDB, saving API rate limit.
     /// </summary>
     public bool IgnoreMediaWithExistingSegments { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether anonymous usage reporting is enabled.
+    /// </summary>
+    public bool EnableAnonymousUsageReporting { get; set; }
 }

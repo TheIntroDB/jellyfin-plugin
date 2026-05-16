@@ -56,6 +56,13 @@
                             To ensure fair use, TheIntroDB API has rate limits. If you have a large library, scanning may be temporarily paused to respect these limits. The process will automatically resume after a cool-down period. Please be patient while your library is scanned.
                         </div>
                     </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableAnonymousUsageReporting" name="EnableAnonymousUsageReporting" type="checkbox" is="emby-checkbox" />
+                            <span>Enable anonymous usage reporting</span>
+                        </label>
+                        <div class="fieldDescription">When enabled, anonymous usage metrics may be collected to help improve the plugin.</div>
+                    </div>
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                             <span>Save</span>
@@ -78,6 +85,7 @@
                             document.querySelector('#EnableCredits').checked = config.EnableCredits !== false;
                             document.querySelector('#EnablePreview').checked = config.EnablePreview !== false;
                             document.querySelector('#IgnoreMediaWithExistingSegments').checked = config.IgnoreMediaWithExistingSegments !== false;
+                            document.querySelector('#EnableAnonymousUsageReporting').checked = config.EnableAnonymousUsageReporting !== false;
                             Dashboard.hideLoadingMsg();
                         });
                     });
@@ -93,6 +101,7 @@
                             config.EnableCredits = document.querySelector('#EnableCredits').checked;
                             config.EnablePreview = document.querySelector('#EnablePreview').checked;
                             config.IgnoreMediaWithExistingSegments = document.querySelector('#IgnoreMediaWithExistingSegments').checked;
+                            config.EnableAnonymousUsageReporting = document.querySelector('#EnableAnonymousUsageReporting').checked;
                             ApiClient.updatePluginConfiguration(pluginUniqueId, config).then(function (result) {
                                 Dashboard.processPluginConfigurationUpdateResult(result);
                             });

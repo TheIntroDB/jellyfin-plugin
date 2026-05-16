@@ -118,9 +118,21 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             if (segmentManager.HasSegments(request.ItemId))
             {
                 _logger.LogDebug("Skipping {Name}: already has segments (IgnoreMediaWithExistingSegments enabled)", item.Name);
+                Plugin.AnonymousUsageReporter.TrackEvent(
+                    Plugin.Instance,
+                    "segments_generation_skipped_existing",
+                    new Dictionary<string, object>
+                    {
+                        ["host"] = "jellyfin",
+                        ["media_type"] = isMovie ? "movie" : "episode",
+                        ["has_tmdb"] = tmdbId.HasValue && tmdbId.Value > 0 ? 1 : 0,
+                        ["has_imdb"] = !string.IsNullOrWhiteSpace(imdbId) ? 1 : 0,
+                        ["existing_segments_count"] = request.ExistingSegments?.Count ?? 0,
+                        ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(config.ApiKey) ? 1 : 0
+                    });
 
                 // Return existing segments unchanged to prevent Jellyfin from deleting them.
-                return request.ExistingSegments.ToList();
+                return (request.ExistingSegments ?? Array.Empty<MediaSegmentDto>()).ToList();
             }
         }
 
@@ -157,6 +169,31 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         {
             // Added
         }
+
+        var introCount = segments.Count(s => s.Type == MediaSegmentType.Intro);
+        var recapCount = segments.Count(s => s.Type == MediaSegmentType.Recap);
+        var creditsCount = segments.Count(s => s.Type == MediaSegmentType.Outro);
+        var previewCount = segments.Count(s => s.Type == MediaSegmentType.Preview);
+        Plugin.AnonymousUsageReporter.TrackEvent(
+            Plugin.Instance,
+            "segments_generated",
+            new Dictionary<string, object>
+            {
+                ["host"] = "jellyfin",
+                ["media_type"] = isMovie ? "movie" : "episode",
+                ["has_tmdb"] = tmdbId.HasValue && tmdbId.Value > 0 ? 1 : 0,
+                ["has_imdb"] = !string.IsNullOrWhiteSpace(imdbId) ? 1 : 0,
+                ["segments_total"] = segments.Count,
+                ["segments_intro"] = introCount,
+                ["segments_recap"] = recapCount,
+                ["segments_credits"] = creditsCount,
+                ["segments_preview"] = previewCount,
+                ["enable_intro"] = config.EnableIntro ? 1 : 0,
+                ["enable_recap"] = config.EnableRecap ? 1 : 0,
+                ["enable_credits"] = config.EnableCredits ? 1 : 0,
+                ["enable_preview"] = config.EnablePreview ? 1 : 0,
+                ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(config.ApiKey) ? 1 : 0
+            });
 
         _logger.LogInformation("Returning {Count} segments for {Name}", segments.Count, item.Name);
         return segments;

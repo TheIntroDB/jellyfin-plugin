@@ -57,20 +57,32 @@ public class TheIntroDbClient
         int? episode,
         CancellationToken cancellationToken)
     {
+        var tmdbIdValue = tmdbId.GetValueOrDefault();
+        var hasTmdb = tmdbIdValue > 0;
+        var hasImdb = !string.IsNullOrWhiteSpace(imdbId);
+        var idSource = hasTmdb ? "tmdb" : hasImdb ? "imdb" : "none";
+
         if (DateTime.UtcNow < Plugin.RateLimitExpiryUtc)
         {
             _logger.LogWarning(
                 "TheIntroDB API rate limit is currently active. Skipping request. The rate limit will reset at {RateLimitExpiryUtc} UTC.",
                 Plugin.RateLimitExpiryUtc);
+            Plugin.AnonymousUsageReporter.TrackEvent(
+                _plugin,
+                "theintrodb_api_media_fetch",
+                new System.Collections.Generic.Dictionary<string, object>
+                {
+                    ["host"] = "jellyfin",
+                    ["result"] = "local_ratelimit_active",
+                    ["media_type"] = isMovie ? "movie" : "episode",
+                    ["id_source"] = idSource,
+                    ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(_plugin.Configuration?.ApiKey) ? 1 : 0
+                });
             return null;
         }
 
         var config = _plugin.Configuration ?? new PluginConfiguration();
         const string baseUrl = "https://api.theintrodb.org/v2";
-
-        var tmdbIdValue = tmdbId.GetValueOrDefault();
-        var hasTmdb = tmdbIdValue > 0;
-        var hasImdb = !string.IsNullOrWhiteSpace(imdbId);
 
         if (!hasTmdb && !hasImdb)
         {
@@ -118,6 +130,17 @@ public class TheIntroDbClient
                     Plugin.RateLimitExpiryUtc,
                     retryAfterSeconds);
 
+                Plugin.AnonymousUsageReporter.TrackEvent(
+                    _plugin,
+                    "theintrodb_api_media_fetch",
+                    new System.Collections.Generic.Dictionary<string, object>
+                    {
+                        ["host"] = "jellyfin",
+                        ["result"] = "http_429",
+                        ["media_type"] = isMovie ? "movie" : "episode",
+                        ["id_source"] = idSource,
+                        ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(config.ApiKey) ? 1 : 0
+                    });
                 return null;
             }
 
@@ -125,6 +148,18 @@ public class TheIntroDbClient
             {
                 var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
                 _logger.LogWarning("TheIntroDB API error response body: {Body}", string.IsNullOrEmpty(body) ? "(empty)" : body.Length > 500 ? body[..500] + "..." : body);
+                Plugin.AnonymousUsageReporter.TrackEvent(
+                    _plugin,
+                    "theintrodb_api_media_fetch",
+                    new System.Collections.Generic.Dictionary<string, object>
+                    {
+                        ["host"] = "jellyfin",
+                        ["result"] = "http_error",
+                        ["status"] = (int)response.StatusCode,
+                        ["media_type"] = isMovie ? "movie" : "episode",
+                        ["id_source"] = idSource,
+                        ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(config.ApiKey) ? 1 : 0
+                    });
                 return null;
             }
 
@@ -136,11 +171,37 @@ public class TheIntroDbClient
                 result?.Recap?.Count ?? 0,
                 result?.Credits?.Count ?? 0,
                 result?.Preview?.Count ?? 0);
+            Plugin.AnonymousUsageReporter.TrackEvent(
+                _plugin,
+                "theintrodb_api_media_fetch",
+                new System.Collections.Generic.Dictionary<string, object>
+                {
+                    ["host"] = "jellyfin",
+                    ["result"] = result is null ? "success_null" : "success",
+                    ["media_type"] = isMovie ? "movie" : "episode",
+                    ["id_source"] = idSource,
+                    ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(config.ApiKey) ? 1 : 0,
+                    ["intro_count"] = result?.Intro?.Count ?? 0,
+                    ["recap_count"] = result?.Recap?.Count ?? 0,
+                    ["credits_count"] = result?.Credits?.Count ?? 0,
+                    ["preview_count"] = result?.Preview?.Count ?? 0
+                });
             return result;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "TheIntroDB API request failed for {Uri}", requestUri);
+            Plugin.AnonymousUsageReporter.TrackEvent(
+                _plugin,
+                "theintrodb_api_media_fetch",
+                new System.Collections.Generic.Dictionary<string, object>
+                {
+                    ["host"] = "jellyfin",
+                    ["result"] = "exception",
+                    ["media_type"] = isMovie ? "movie" : "episode",
+                    ["id_source"] = idSource,
+                    ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(config.ApiKey) ? 1 : 0
+                });
             return null;
         }
     }
