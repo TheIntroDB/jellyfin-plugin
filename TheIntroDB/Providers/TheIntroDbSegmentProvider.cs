@@ -139,7 +139,10 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         _logger.LogInformation("Fetching from TheIntroDB API: tmdbId={TmdbId}, imdbId={ImdbId}, isMovie={IsMovie}, season={Season}, episode={Episode}", tmdbId, imdbId, isMovie, season, episode);
         var httpClient = _httpClientFactory.CreateClient();
         var client = new TheIntroDbClient(httpClient, Plugin.Instance, _logger);
-        var media = await client.GetMediaAsync(tmdbId, imdbId, isMovie, season, episode, cancellationToken).ConfigureAwait(false);
+        long? durationMs = item.RunTimeTicks.HasValue && item.RunTimeTicks.Value > 0
+            ? item.RunTimeTicks.Value / TimeSpan.TicksPerMillisecond
+            : null;
+        var media = await client.GetMediaAsync(tmdbId, imdbId, isMovie, season, episode, durationMs, cancellationToken).ConfigureAwait(false);
         if (media is null)
         {
             _logger.LogInformation("TheIntroDB API returned no data for {Name}", item.Name);

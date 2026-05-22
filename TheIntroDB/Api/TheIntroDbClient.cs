@@ -47,6 +47,7 @@ public class TheIntroDbClient
     /// <param name="isMovie">True for movie, false for TV episode.</param>
     /// <param name="season">Season number (required for TV).</param>
     /// <param name="episode">Episode number (required for TV).</param>
+    /// <param name="durationMs">Optional total video duration (milliseconds). Recommended for best matching release version.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Media response or null if not found or error.</returns>
     public async Task<MediaResponse?> GetMediaAsync(
@@ -55,6 +56,7 @@ public class TheIntroDbClient
         bool isMovie,
         int? season,
         int? episode,
+        long? durationMs,
         CancellationToken cancellationToken)
     {
         var tmdbIdValue = tmdbId.GetValueOrDefault();
@@ -82,7 +84,7 @@ public class TheIntroDbClient
         }
 
         var config = _plugin.Configuration ?? new PluginConfiguration();
-        const string baseUrl = "https://api.theintrodb.org/v2";
+        const string baseUrl = "https://api.theintrodb.org/v3";
 
         if (!hasTmdb && !hasImdb)
         {
@@ -102,6 +104,11 @@ public class TheIntroDbClient
             query = isMovie
                 ? $"?imdb_id={encodedImdb}"
                 : $"?imdb_id={encodedImdb}&season={season}&episode={episode}";
+        }
+
+        if (durationMs.HasValue && durationMs.Value > 0)
+        {
+            query += $"&duration_ms={durationMs.Value}";
         }
 
         var requestUri = new Uri(baseUrl + "/media" + query, UriKind.Absolute);
