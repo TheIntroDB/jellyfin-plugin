@@ -36,7 +36,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     public override string Name => "TheIntroDB";
 
     /// <inheritdoc />
-    public override Guid Id => Guid.Parse("eb5d7894-8eef-4b36-aa6f-5d124e828ce1");
+    public override Guid Id => Guid.Parse("c9e41b95-63e4-45e2-9db6-b83df21ae5e7");
 
     /// <summary>
     /// Gets the current plugin instance.
