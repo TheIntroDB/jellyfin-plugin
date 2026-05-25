@@ -40,9 +40,10 @@ public class TheIntroDbClient
     }
 
     /// <summary>
-    /// Fetches media segment timestamps for the given TMDB id or IMDB id (movie) or episode.
+    /// Fetches media segment timestamps for the given TMDB / TVDB / IMDB id (movie) or episode.
     /// </summary>
     /// <param name="tmdbId">Optional TMDB ID of the movie or series.</param>
+    /// <param name="tvdbId">Optional TVDB ID of the movie or series. Used when no TMDB ID is available.</param>
     /// <param name="imdbId">Optional IMDB ID of the movie or episode (tt[0-9]{7,8}). Used when no TMDB ID is available.</param>
     /// <param name="isMovie">True for movie, false for TV episode.</param>
     /// <param name="season">Season number (required for TV).</param>
@@ -52,6 +53,7 @@ public class TheIntroDbClient
     /// <returns>Media response or null if not found or error.</returns>
     public async Task<MediaResponse?> GetMediaAsync(
         int? tmdbId,
+        int? tvdbId,
         string? imdbId,
         bool isMovie,
         int? season,
@@ -61,8 +63,10 @@ public class TheIntroDbClient
     {
         var tmdbIdValue = tmdbId.GetValueOrDefault();
         var hasTmdb = tmdbIdValue > 0;
+        var tvdbIdValue = tvdbId.GetValueOrDefault();
+        var hasTvdb = tvdbIdValue > 0;
         var hasImdb = !string.IsNullOrWhiteSpace(imdbId);
-        var idSource = hasTmdb ? "tmdb" : hasImdb ? "imdb" : "none";
+        var idSource = hasTmdb ? "tmdb" : hasTvdb ? "tvdb" : hasImdb ? "imdb" : "none";
 
         if (DateTime.UtcNow < Plugin.RateLimitExpiryUtc)
         {
@@ -86,7 +90,7 @@ public class TheIntroDbClient
         var config = _plugin.Configuration ?? new PluginConfiguration();
         const string baseUrl = "https://api.theintrodb.org/v3";
 
-        if (!hasTmdb && !hasImdb)
+        if (!hasTmdb && !hasTvdb && !hasImdb)
         {
             return null;
         }
@@ -97,6 +101,12 @@ public class TheIntroDbClient
             query = isMovie
                 ? $"?tmdb_id={tmdbIdValue}"
                 : $"?tmdb_id={tmdbIdValue}&season={season}&episode={episode}";
+        }
+        else if (hasTvdb)
+        {
+            query = isMovie
+                ? $"?tvdb_id={tvdbIdValue}"
+                : $"?tvdb_id={tvdbIdValue}&season={season}&episode={episode}";
         }
         else
         {

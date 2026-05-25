@@ -79,6 +79,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         }
 
         int? tmdbId = null;
+        int? tvdbId = null;
         string? imdbId = null;
         bool isMovie = false;
         int? season = null;
@@ -88,21 +89,23 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         {
             isMovie = true;
             tmdbId = GetTmdbId(movie);
+            tvdbId = GetTvdbId(movie);
             imdbId = GetImdbId(movie);
-            _logger.LogInformation("Movie: Name={Name}, TmdbId={TmdbId}, ImdbId={ImdbId}", item.Name, tmdbId, imdbId ?? "(none)");
+            _logger.LogInformation("Movie: Name={Name}, TmdbId={TmdbId}, TvdbId={TvdbId}, ImdbId={ImdbId}", item.Name, tmdbId, tvdbId, imdbId ?? "(none)");
         }
         else if (item is Episode ep)
         {
             tmdbId = GetTmdbId(ep.Series);
+            tvdbId = GetTvdbId(ep.Series);
             imdbId = GetImdbId(ep) ?? GetImdbId(ep.Series);
             season = ep.ParentIndexNumber;
             episode = ep.IndexNumber;
-            _logger.LogInformation("Episode: Name={Name}, Series={Series}, S{Season}E{Episode}, TmdbId={TmdbId}, ImdbId={ImdbId}", item.Name, ep.SeriesName, season, episode, tmdbId, imdbId ?? "(none)");
+            _logger.LogInformation("Episode: Name={Name}, Series={Series}, S{Season}E{Episode}, TmdbId={TmdbId}, TvdbId={TvdbId}, ImdbId={ImdbId}", item.Name, ep.SeriesName, season, episode, tmdbId, tvdbId, imdbId ?? "(none)");
         }
 
-        if ((!tmdbId.HasValue || tmdbId.Value <= 0) && string.IsNullOrWhiteSpace(imdbId))
+        if ((!tmdbId.HasValue || tmdbId.Value <= 0) && (!tvdbId.HasValue || tvdbId.Value <= 0) && string.IsNullOrWhiteSpace(imdbId))
         {
-            _logger.LogWarning("Early exit: no TmdbId or ImdbId for {Name}", item.Name);
+            _logger.LogWarning("Early exit: no TmdbId, TvdbId, or ImdbId for {Name}", item.Name);
             return Array.Empty<MediaSegmentDto>();
         }
 
@@ -126,6 +129,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
                         ["host"] = "jellyfin",
                         ["media_type"] = isMovie ? "movie" : "episode",
                         ["has_tmdb"] = tmdbId.HasValue && tmdbId.Value > 0 ? 1 : 0,
+                        ["has_tvdb"] = tvdbId.HasValue && tvdbId.Value > 0 ? 1 : 0,
                         ["has_imdb"] = !string.IsNullOrWhiteSpace(imdbId) ? 1 : 0,
                         ["existing_segments_count"] = request.ExistingSegments?.Count ?? 0,
                         ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(config.ApiKey) ? 1 : 0
@@ -136,13 +140,13 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             }
         }
 
-        _logger.LogInformation("Fetching from TheIntroDB API: tmdbId={TmdbId}, imdbId={ImdbId}, isMovie={IsMovie}, season={Season}, episode={Episode}", tmdbId, imdbId, isMovie, season, episode);
+        _logger.LogInformation("Fetching from TheIntroDB API: tmdbId={TmdbId}, tvdbId={TvdbId}, imdbId={ImdbId}, isMovie={IsMovie}, season={Season}, episode={Episode}", tmdbId, tvdbId, imdbId, isMovie, season, episode);
         var httpClient = _httpClientFactory.CreateClient();
         var client = new TheIntroDbClient(httpClient, Plugin.Instance, _logger);
         long? durationMs = item.RunTimeTicks.HasValue && item.RunTimeTicks.Value > 0
             ? item.RunTimeTicks.Value / TimeSpan.TicksPerMillisecond
             : null;
-        var media = await client.GetMediaAsync(tmdbId, imdbId, isMovie, season, episode, durationMs, cancellationToken).ConfigureAwait(false);
+        var media = await client.GetMediaAsync(tmdbId, tvdbId, imdbId, isMovie, season, episode, durationMs, cancellationToken).ConfigureAwait(false);
         if (media is null)
         {
             _logger.LogInformation("TheIntroDB API returned no data for {Name}", item.Name);
@@ -185,6 +189,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
                 ["host"] = "jellyfin",
                 ["media_type"] = isMovie ? "movie" : "episode",
                 ["has_tmdb"] = tmdbId.HasValue && tmdbId.Value > 0 ? 1 : 0,
+                ["has_tvdb"] = tvdbId.HasValue && tvdbId.Value > 0 ? 1 : 0,
                 ["has_imdb"] = !string.IsNullOrWhiteSpace(imdbId) ? 1 : 0,
                 ["segments_total"] = segments.Count,
                 ["segments_intro"] = introCount,
@@ -235,6 +240,21 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         if (item.ProviderIds.TryGetValue("Imdb", out var id) && !string.IsNullOrWhiteSpace(id))
         {
             return id;
+        }
+
+        return null;
+    }
+
+    private static int? GetTvdbId(BaseItem item)
+    {
+        if (item?.ProviderIds is null)
+        {
+            return null;
+        }
+
+        if (item.ProviderIds.TryGetValue("Tvdb", out var id) && !string.IsNullOrWhiteSpace(id))
+        {
+            return int.TryParse(id, out var n) ? n : null;
         }
 
         return null;
