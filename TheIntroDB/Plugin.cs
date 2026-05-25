@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -162,6 +163,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
             var requestUri = new Uri(hostUri.AbsoluteUri.TrimEnd('/') + "/api/v0/events", UriKind.Absolute);
             using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
             request.Headers.TryAddWithoutValidation("App-Key", appKey);
+            request.Headers.UserAgent.Clear();
+            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("theintrodb-jellyfin-plugin", version));
             request.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
             using var response = await HttpClient.SendAsync(request).ConfigureAwait(false);

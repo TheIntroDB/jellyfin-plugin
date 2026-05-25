@@ -120,7 +120,9 @@ public class TheIntroDbClient
         }
 
         request.Headers.TryAddWithoutValidation("Accept", "application/json");
-        request.Headers.TryAddWithoutValidation("User-Agent", "TheIntroDB Jellyfin Plugin");
+        var version = _plugin.GetType().Assembly.GetName().Version?.ToString() ?? "0.0.0";
+        request.Headers.UserAgent.Clear();
+        request.Headers.UserAgent.Add(new ProductInfoHeaderValue("theintrodb-jellyfin-plugin", version));
 
         try
         {
