@@ -18,6 +18,13 @@
                         <input id="ApiKey" name="ApiKey" type="password" is="emby-input" autocomplete="off" />
                         <div class="fieldDescription">Optional Bearer token; when set, your pending and accepted submissions are weighted higher in results.</div>
                     </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused">Only scan selected shows (optional)</label>
+                        <div id="SelectedShowSummary" class="fieldDescription" style="margin-bottom: 1em;">All shows</div>
+                        <button id="OpenShowPicker" is="emby-button" type="button" class="raised emby-button">Browse library shows</button>
+                        <button id="ClearSelectedShow" is="emby-button" type="button" class="raised emby-button" style="margin-left: 0.5em;">Clear selection</button>
+                        <div class="fieldDescription">When one or more shows are selected, the media segment scan only fetches episodes from those Jellyfin series and leaves all other items unchanged. Movies are skipped while this filter is active.</div>
+                    </div>
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
                             <input id="EnableIntro" name="EnableIntro" type="checkbox" is="emby-checkbox" />
@@ -71,23 +78,424 @@
                 </form>
             </div>
         </div>
+        <div id="ShowPickerOverlay" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); z-index: 1000; padding: 2em; box-sizing: border-box;">
+            <div style="max-width: 900px; margin: 0 auto; background: #101010; border-radius: 0.5em; padding: 1.5em; max-height: 90vh; display: flex; flex-direction: column;">
+                <div class="sectionTitleContainer flex align-items-center" style="justify-content: space-between;">
+                    <h2 class="sectionTitle" style="margin: 0;">Choose Shows</h2>
+                    <div>
+                        <button id="CloseShowPicker" is="emby-button" type="button" class="raised emby-button">Cancel</button>
+                        <button id="DoneShowPicker" is="emby-button" type="button" class="raised emby-button" style="margin-left: 0.5em;">Done</button>
+                    </div>
+                </div>
+                <div class="inputContainer" style="margin-top: 1em;">
+                    <label class="inputLabel inputLabelUnfocused" for="ShowPickerSearch">Search shows</label>
+                    <input id="ShowPickerSearch" type="text" is="emby-input" autocomplete="off" />
+                </div>
+                <div id="ShowPickerStatus" class="fieldDescription" style="margin-bottom: 1em;">Loading shows...</div>
+                <div id="ShowPickerList" style="overflow-y: auto; border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 0.5em; min-height: 12em; padding: 0.5em;"></div>
+            </div>
+        </div>
         <script type="text/javascript">
             (function () {
                 var pluginUniqueId = 'c9e41b95-63e4-45e2-9db6-b83df21ae5e7';
+                var selectedShowIds = [];
+                var selectedShowNames = [];
+                var pickerSelectedShowIds = [];
+                var allShowItems = [];
+                var showsLoaded = false;
+                var selectedShowSummaryElement = document.querySelector('#SelectedShowSummary');
+                var clearSelectedShowButton = document.querySelector('#ClearSelectedShow');
+                var showPickerOverlay = document.querySelector('#ShowPickerOverlay');
+                var showPickerSearchElement = document.querySelector('#ShowPickerSearch');
+                var showPickerStatusElement = document.querySelector('#ShowPickerStatus');
+                var showPickerListElement = document.querySelector('#ShowPickerList');
+
+                function normalizeId(value) {
+                    return (value || '').toString().replace(/-/g, '').toLowerCase();
+                }
+
+                function dedupeShowIds(showIds) {
+                    var seen = {};
+                    return (showIds || []).filter(function (showId) {
+                        var normalizedShowId = normalizeId(showId);
+                        if (!normalizedShowId || seen[normalizedShowId]) {
+                            return false;
+                        }
+
+                        seen[normalizedShowId] = true;
+                        return true;
+                    });
+                }
+
+                function isShowSelected(showId, selectedIds) {
+                    var normalizedShowId = normalizeId(showId);
+                    return (selectedIds || []).some(function (selectedId) {
+                        return normalizeId(selectedId) === normalizedShowId;
+                    });
+                }
+
+                function getShowLabel(item) {
+                    if (!item) {
+                        return 'Unknown show';
+                    }
+
+                    var name = item.Name || item.SortName || 'Unknown show';
+                    return item.ProductionYear ? name + ' (' + item.ProductionYear + ')' : name;
+                }
+
+                function getNormalizedShowItem(item) {
+                    if (!item) {
+                        return null;
+                    }
+
+                    var id = item.Id || item.id || '';
+                    if (!id) {
+                        return null;
+                    }
+
+                    return {
+                        Id: id,
+                        Name: item.Name || item.name || '',
+                        SortName: item.SortName || item.sortName || '',
+                        ProductionYear: item.ProductionYear || item.productionYear || null
+                    };
+                }
+
+                function getSelectedShowIdsFromConfig(config) {
+                    var configuredShowIds = [];
+
+                    if (Array.isArray(config.SelectedShowIds)) {
+                        configuredShowIds = configuredShowIds.concat(config.SelectedShowIds);
+                    } else if (typeof config.SelectedShowIds === 'string' && config.SelectedShowIds) {
+                        configuredShowIds = configuredShowIds.concat(config.SelectedShowIds.split(',').map(function (showId) {
+                            return showId.trim();
+                        }).filter(function (showId) {
+                            return !!showId;
+                        }));
+                    } else if (config.SelectedShowIds) {
+                        configuredShowIds.push(config.SelectedShowIds);
+                    }
+
+                    if (config.SelectedShowId) {
+                        configuredShowIds.push(config.SelectedShowId);
+                    }
+
+                    return dedupeShowIds(configuredShowIds);
+                }
+
+                function getSelectionSummaryText() {
+                    if (!selectedShowIds.length) {
+                        return 'All shows';
+                    }
+
+                    if (selectedShowNames.length <= 3) {
+                        return selectedShowNames.join(', ');
+                    }
+
+                    return selectedShowIds.length + ' shows selected: ' + selectedShowNames.slice(0, 3).join(', ') + ', ...';
+                }
+
+                function updateSelectedShowSummary() {
+                    selectedShowSummaryElement.textContent = getSelectionSummaryText();
+                    clearSelectedShowButton.disabled = selectedShowIds.length === 0;
+                }
+
+                function ensureShowItemsForIds(showIds) {
+                    var itemsByNormalizedId = {};
+
+                    allShowItems.forEach(function (item) {
+                        itemsByNormalizedId[normalizeId(item.Id)] = item;
+                    });
+
+                    return dedupeShowIds(showIds).map(function (showId) {
+                        var normalizedShowId = normalizeId(showId);
+                        var item = itemsByNormalizedId[normalizedShowId];
+
+                        if (!item) {
+                            item = {
+                                Id: showId,
+                                Name: 'Previously selected show',
+                                ProductionYear: null
+                            };
+                            allShowItems.unshift(item);
+                            itemsByNormalizedId[normalizedShowId] = item;
+                        }
+
+                        return item;
+                    });
+                }
+
+                function setSelectedShows(showItems) {
+                    var validItems = (showItems || []).filter(function (item) {
+                        return item && item.Id;
+                    });
+
+                    selectedShowIds = dedupeShowIds(validItems.map(function (item) {
+                        return item.Id;
+                    }));
+                    selectedShowNames = validItems.map(function (item) {
+                        return getShowLabel(item);
+                    });
+                    updateSelectedShowSummary();
+                }
+
+                function applyPickerSelection() {
+                    setSelectedShows(ensureShowItemsForIds(pickerSelectedShowIds));
+                    closeShowPicker();
+                }
+
+                function getShowImageUrl(item) {
+                    if (!item || !item.Id) {
+                        return '';
+                    }
+
+                    if (typeof ApiClient.getScaledImageUrl === 'function') {
+                        return ApiClient.getScaledImageUrl(item.Id, {
+                            type: 'Primary',
+                            width: 320
+                        });
+                    }
+
+                    return ApiClient.getUrl('Items/' + item.Id + '/Images/Primary', {
+                        maxWidth: 320
+                    });
+                }
+
+                function getPickerStatusText() {
+                    return allShowItems.length
+                        ? 'Click shows to toggle selection, then click Done.'
+                        : 'No shows were returned from this user library.';
+                }
+
+                function renderShowList(filterText) {
+                    var normalizedFilter = (filterText || '').trim().toLowerCase();
+                    var matchingItems = allShowItems.filter(function (item) {
+                        if (!normalizedFilter) {
+                            return true;
+                        }
+
+                        return getShowLabel(item).toLowerCase().indexOf(normalizedFilter) !== -1;
+                    });
+
+                    showPickerListElement.innerHTML = '';
+                    showPickerListElement.style.display = 'block';
+                    showPickerListElement.style.flexWrap = '';
+                    showPickerListElement.style.gap = '';
+                    showPickerListElement.style.alignItems = '';
+
+                    if (!matchingItems.length) {
+                        showPickerListElement.textContent = 'No shows found.';
+                        return;
+                    }
+
+                    showPickerListElement.style.display = 'flex';
+                    showPickerListElement.style.flexWrap = 'wrap';
+                    showPickerListElement.style.gap = '1em';
+                    showPickerListElement.style.alignItems = 'flex-start';
+
+                    matchingItems.forEach(function (item) {
+                        var showIsSelected = isShowSelected(item.Id, pickerSelectedShowIds);
+                        var button = document.createElement('button');
+                        button.type = 'button';
+                        button.className = 'emby-button';
+                        button.style.display = 'flex';
+                        button.style.flexDirection = 'column';
+                        button.style.alignItems = 'center';
+                        button.style.justifyContent = 'flex-start';
+                        button.style.width = '150px';
+                        button.style.margin = '0';
+                        button.style.padding = '0.75em';
+                        button.style.textAlign = 'center';
+                        button.style.border = showIsSelected
+                            ? '2px solid rgba(255, 255, 255, 0.85)'
+                            : '1px solid rgba(255, 255, 255, 0.12)';
+                        button.style.borderRadius = '0.5em';
+                        button.style.background = showIsSelected
+                            ? 'rgba(255, 255, 255, 0.12)'
+                            : 'rgba(255, 255, 255, 0.03)';
+
+                        var image = document.createElement('img');
+                        image.src = getShowImageUrl(item);
+                        image.alt = getShowLabel(item);
+                        image.style.display = 'block';
+                        image.style.width = '100%';
+                        image.style.aspectRatio = '2 / 3';
+                        image.style.objectFit = 'cover';
+                        image.style.borderRadius = '0.35em';
+                        image.style.background = 'rgba(255, 255, 255, 0.08)';
+                        image.addEventListener('error', function () {
+                            image.style.display = 'none';
+                        });
+
+                        var label = document.createElement('div');
+                        label.textContent = getShowLabel(item);
+                        label.style.marginTop = '0.75em';
+                        label.style.fontSize = '0.95em';
+                        label.style.lineHeight = '1.35';
+                        label.style.whiteSpace = 'normal';
+
+                        var selectionState = document.createElement('div');
+                        selectionState.textContent = showIsSelected ? 'Selected' : 'Click to select';
+                        selectionState.style.marginTop = '0.4em';
+                        selectionState.style.fontSize = '0.8em';
+                        selectionState.style.opacity = showIsSelected ? '1' : '0.7';
+
+                        button.addEventListener('click', function () {
+                            if (showIsSelected) {
+                                pickerSelectedShowIds = pickerSelectedShowIds.filter(function (selectedId) {
+                                    return normalizeId(selectedId) !== normalizeId(item.Id);
+                                });
+                            } else {
+                                pickerSelectedShowIds = dedupeShowIds(pickerSelectedShowIds.concat([item.Id]));
+                            }
+
+                            renderShowList(showPickerSearchElement.value || '');
+                        });
+
+                        button.appendChild(image);
+                        button.appendChild(label);
+                        button.appendChild(selectionState);
+                        showPickerListElement.appendChild(button);
+                    });
+                }
+
+                function getCurrentUserId() {
+                    if (typeof ApiClient.getCurrentUserId === 'function') {
+                        return Promise.resolve(ApiClient.getCurrentUserId());
+                    }
+
+                    if (typeof ApiClient.getCurrentUser === 'function') {
+                        return ApiClient.getCurrentUser().then(function (user) {
+                            return user && user.Id ? user.Id : '';
+                        });
+                    }
+
+                    return Promise.resolve('');
+                }
+
+                function getJson(url) {
+                    if (typeof ApiClient.getJSON === 'function') {
+                        return ApiClient.getJSON(url);
+                    }
+
+                    if (typeof ApiClient.ajax === 'function') {
+                        return ApiClient.ajax({
+                            type: 'GET',
+                            url: url,
+                            dataType: 'json'
+                        });
+                    }
+
+                    throw new Error('No authenticated ApiClient JSON method is available');
+                }
+
+                function loadShows(selectedConfigShowIds) {
+                    return getCurrentUserId().then(function (userId) {
+                        if (!userId) {
+                            throw new Error('Missing current user id');
+                        }
+
+                        return getJson(ApiClient.getUrl('Users/' + userId + '/Items', {
+                            Recursive: true,
+                            IncludeItemTypes: 'Series',
+                            SortBy: 'SortName',
+                            SortOrder: 'Ascending',
+                            Fields: 'ProductionYear',
+                            EnableTotalRecordCount: false,
+                            Limit: 10000
+                        }));
+                    }).then(function (result) {
+                        var rawItems = (result && (result.Items || result.items)) || [];
+                        var items = rawItems.map(getNormalizedShowItem).filter(function (item) {
+                            return !!item;
+                        });
+                        var configuredShowIds = dedupeShowIds(selectedConfigShowIds);
+
+                        allShowItems = items;
+                        showsLoaded = true;
+
+                        setSelectedShows(ensureShowItemsForIds(configuredShowIds));
+                        pickerSelectedShowIds = selectedShowIds.slice();
+                        renderShowList('');
+                        showPickerStatusElement.textContent = getPickerStatusText();
+                    }).catch(function () {
+                        setSelectedShows(ensureShowItemsForIds(selectedConfigShowIds));
+                        pickerSelectedShowIds = selectedShowIds.slice();
+                        showPickerStatusElement.textContent = 'Could not load library shows right now.';
+                    });
+                }
+
+                function openShowPicker() {
+                    showPickerOverlay.style.display = 'block';
+                    showPickerSearchElement.value = '';
+                    pickerSelectedShowIds = selectedShowIds.slice();
+                    showPickerStatusElement.textContent = showsLoaded ? getPickerStatusText() : 'Loading shows...';
+
+                    var loadingPromise = showsLoaded ? Promise.resolve() : loadShows(selectedShowIds);
+                    loadingPromise.then(function () {
+                        showPickerStatusElement.textContent = getPickerStatusText();
+                        renderShowList('');
+                        showPickerSearchElement.focus();
+                    }).catch(function () {
+                        showPickerSearchElement.focus();
+                    });
+                }
+
+                function closeShowPicker() {
+                    showPickerOverlay.style.display = 'none';
+                }
 
                 document.querySelector('#TheIntroDbConfigPage')
                     .addEventListener('pageshow', function () {
                         Dashboard.showLoadingMsg();
                         ApiClient.getPluginConfiguration(pluginUniqueId).then(function (config) {
                             document.querySelector('#ApiKey').value = config.ApiKey || '';
-                            document.querySelector('#EnableIntro').checked = config.EnableIntro !== false;
-                            document.querySelector('#EnableRecap').checked = config.EnableRecap !== false;
-                            document.querySelector('#EnableCredits').checked = config.EnableCredits !== false;
-                            document.querySelector('#EnablePreview').checked = config.EnablePreview !== false;
-                            document.querySelector('#IgnoreMediaWithExistingSegments').checked = config.IgnoreMediaWithExistingSegments !== false;
-                            document.querySelector('#EnableAnonymousUsageReporting').checked = config.EnableAnonymousUsageReporting !== false;
+                            return loadShows(getSelectedShowIdsFromConfig(config)).then(function () {
+                                document.querySelector('#EnableIntro').checked = config.EnableIntro !== false;
+                                document.querySelector('#EnableRecap').checked = config.EnableRecap !== false;
+                                document.querySelector('#EnableCredits').checked = config.EnableCredits !== false;
+                                document.querySelector('#EnablePreview').checked = config.EnablePreview !== false;
+                                document.querySelector('#IgnoreMediaWithExistingSegments').checked = config.IgnoreMediaWithExistingSegments !== false;
+                                document.querySelector('#EnableAnonymousUsageReporting').checked = config.EnableAnonymousUsageReporting !== false;
+                            });
+                        }).finally(function () {
                             Dashboard.hideLoadingMsg();
                         });
+                    });
+
+                document.querySelector('#OpenShowPicker')
+                    .addEventListener('click', function () {
+                        openShowPicker();
+                    });
+
+                document.querySelector('#CloseShowPicker')
+                    .addEventListener('click', function () {
+                        closeShowPicker();
+                    });
+
+                document.querySelector('#DoneShowPicker')
+                    .addEventListener('click', function () {
+                        applyPickerSelection();
+                    });
+
+                clearSelectedShowButton
+                    .addEventListener('click', function () {
+                        selectedShowIds = [];
+                        selectedShowNames = [];
+                        pickerSelectedShowIds = [];
+                        updateSelectedShowSummary();
+                    });
+
+                showPickerOverlay
+                    .addEventListener('click', function (event) {
+                        if (event.target === showPickerOverlay) {
+                            closeShowPicker();
+                        }
+                    });
+
+                showPickerSearchElement
+                    .addEventListener('input', function () {
+                        renderShowList(showPickerSearchElement.value || '');
                     });
 
                 document.querySelector('#TheIntroDbConfigForm')
@@ -96,6 +504,8 @@
                         Dashboard.showLoadingMsg();
                         ApiClient.getPluginConfiguration(pluginUniqueId).then(function (config) {
                             config.ApiKey = document.querySelector('#ApiKey').value || '';
+                            config.SelectedShowIds = selectedShowIds.join(',');
+                            config.SelectedShowId = selectedShowIds.length ? selectedShowIds[0] : '';
                             config.EnableIntro = document.querySelector('#EnableIntro').checked;
                             config.EnableRecap = document.querySelector('#EnableRecap').checked;
                             config.EnableCredits = document.querySelector('#EnableCredits').checked;
@@ -108,6 +518,8 @@
                         });
                         return false;
                     });
+
+                updateSelectedShowSummary();
             })();
         </script>
     </div>

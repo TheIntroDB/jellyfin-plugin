@@ -67,6 +67,7 @@ Easiest way to install:
 TheIntroDB plugin includes some configuration options to adjust and improve your experience.
 
 - **API Key**: You can enter your TheIntroDB API key to fetch your submissions even if they're still pending and prioritize yours in the averaging calculation.
+- **Only Scan Selected Shows**: Optionally limit the Media Segment Scan task to specific Jellyfin series from the plugin settings page. When this filter is active, the plugin only fetches episode segments for those selected shows and skips movies.
 - **Segment Toggles**: (All enabled by default) You can disable each segment individually so they're not applied when fetching.
 - **Ignore Media That Already Has Segments**: (Enabled by default) Prevent refetching of media that already has segments. This is recommended for large libraries.
 
