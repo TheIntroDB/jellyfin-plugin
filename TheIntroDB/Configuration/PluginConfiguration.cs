@@ -13,6 +13,8 @@ public class PluginConfiguration : BasePluginConfiguration
     public PluginConfiguration()
     {
         ApiKey = string.Empty;
+        SelectedShowId = string.Empty;
+        SelectedShowIds = string.Empty;
         EnableIntro = true;
         EnableRecap = true;
         EnableCredits = true;
@@ -25,6 +27,18 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets the optional API key for TheIntroDB (Bearer token). When set, your pending and accepted submissions are weighted higher.
     /// </summary>
     public string ApiKey { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional Jellyfin series id to limit scans to a single show.
+    /// When empty, all supported media can be scanned.
+    /// </summary>
+    public string SelectedShowId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional comma-separated Jellyfin series ids to limit scans to specific shows.
+    /// When empty, all supported media can be scanned.
+    /// </summary>
+    public string SelectedShowIds { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether to provide intro segments from TheIntroDB.

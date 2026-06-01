@@ -78,6 +78,25 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             return Array.Empty<MediaSegmentDto>();
         }
 
+        var selectedShowIds = GetSelectedShowIds(config);
+        if (selectedShowIds.Count > 0)
+        {
+            if (item is not Episode selectedEpisode)
+            {
+                _logger.LogDebug("Skipping {Name}: selected show filter is set and item is not an episode", item.Name);
+                return GetExistingSegments(request);
+            }
+
+            if (!IsEpisodeInSelectedShows(selectedEpisode, selectedShowIds))
+            {
+                _logger.LogDebug(
+                    "Skipping {Name}: series does not match any selected show filter ({SelectedShowCount} selected)",
+                    item.Name,
+                    selectedShowIds.Count);
+                return GetExistingSegments(request);
+            }
+        }
+
         int? tmdbId = null;
         int? tvdbId = null;
         string? imdbId = null;
@@ -136,7 +155,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
                     });
 
                 // Return existing segments unchanged to prevent Jellyfin from deleting them.
-                return (request.ExistingSegments ?? Array.Empty<MediaSegmentDto>()).ToList();
+                return GetExistingSegments(request);
             }
         }
 
@@ -213,6 +232,58 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         var supported = item is Episode or Movie;
         _logger.LogDebug("Supports({Name}, {Type}): {Supported}", item?.Name ?? "null", item?.GetType().Name ?? "null", supported);
         return ValueTask.FromResult(supported);
+    }
+
+    private static List<MediaSegmentDto> GetExistingSegments(MediaSegmentGenerationRequest request)
+    {
+        return (request.ExistingSegments ?? Array.Empty<MediaSegmentDto>()).ToList();
+    }
+
+    private static HashSet<string> GetSelectedShowIds(PluginConfiguration config)
+    {
+        var selectedShowIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (!string.IsNullOrWhiteSpace(config.SelectedShowIds))
+        {
+            foreach (var selectedShowId in config.SelectedShowIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                var normalizedSelectedShowId = NormalizeShowId(selectedShowId);
+                if (!string.IsNullOrWhiteSpace(normalizedSelectedShowId))
+                {
+                    selectedShowIds.Add(normalizedSelectedShowId);
+                }
+            }
+        }
+
+        var legacySelectedShowId = NormalizeShowId(config.SelectedShowId);
+        if (!string.IsNullOrWhiteSpace(legacySelectedShowId))
+        {
+            selectedShowIds.Add(legacySelectedShowId);
+        }
+
+        return selectedShowIds;
+    }
+
+    private static bool IsEpisodeInSelectedShows(Episode episode, HashSet<string> selectedShowIds)
+    {
+        var seriesId = episode.Series?.Id;
+        if (!seriesId.HasValue || seriesId.Value == Guid.Empty)
+        {
+            return false;
+        }
+
+        return selectedShowIds.Contains(seriesId.Value.ToString("D"))
+            || selectedShowIds.Contains(seriesId.Value.ToString("N"));
+    }
+
+    private static string NormalizeShowId(string? selectedShowId)
+    {
+        if (string.IsNullOrWhiteSpace(selectedShowId))
+        {
+            return string.Empty;
+        }
+
+        return selectedShowId.Trim();
     }
 
     private static int? GetTmdbId(BaseItem item)
