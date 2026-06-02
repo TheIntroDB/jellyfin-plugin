@@ -510,58 +510,7 @@
 
                     apiStatsContentElement.appendChild(statsGrid);
 
-                    var topMediaHeading = document.createElement('div');
-                    topMediaHeading.textContent = 'Top Media';
-                    topMediaHeading.style.marginTop = '1.25em';
-                    topMediaHeading.style.fontWeight = '600';
-                    apiStatsContentElement.appendChild(topMediaHeading);
 
-                    var topMediaList = document.createElement('div');
-                    topMediaList.style.marginTop = '0.5em';
-
-                    if (!Array.isArray(stats.top_media) || !stats.top_media.length) {
-                        topMediaList.textContent = 'No top media data available.';
-                    } else {
-                        stats.top_media.forEach(function (entry) {
-                            var row = document.createElement('div');
-                            row.style.padding = '0.75em 0';
-                            row.style.borderBottom = '1px solid rgba(255, 255, 255, 0.08)';
-
-                            if (typeof entry === 'string') {
-                                row.textContent = entry;
-                            } else {
-                                var name = entry.title || entry.name || entry.media || entry.id || 'Media item';
-                                var details = [];
-
-                                Object.keys(entry).forEach(function (key) {
-                                    if (key === 'title' || key === 'name' || key === 'media' || key === 'id') {
-                                        return;
-                                    }
-
-                                    details.push(getStatLabelText(key) + ': ' + formatStatValue(key, entry[key]));
-                                });
-
-                                var nameElement = document.createElement('div');
-                                nameElement.textContent = name;
-                                nameElement.style.fontWeight = '600';
-
-                                row.appendChild(nameElement);
-
-                                if (details.length) {
-                                    var detailElement = document.createElement('div');
-                                    detailElement.textContent = details.join(' | ');
-                                    detailElement.style.marginTop = '0.3em';
-                                    detailElement.style.opacity = '0.75';
-                                    detailElement.style.fontSize = '0.9em';
-                                    row.appendChild(detailElement);
-                                }
-                            }
-
-                            topMediaList.appendChild(row);
-                        });
-                    }
-
-                    apiStatsContentElement.appendChild(topMediaList);
                 }
 
                 function openApiStatsOverlay() {
