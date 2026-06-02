@@ -79,20 +79,25 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         }
 
         var selectedShowIds = GetSelectedShowIds(config);
-        if (selectedShowIds.Count > 0)
+        var selectedLibraryIds = GetSelectedLibraryIds(config);
+        if (selectedShowIds.Count > 0 || selectedLibraryIds.Count > 0)
         {
-            if (item is not Episode selectedEpisode)
+            var selectedEpisode = item as Episode;
+            var itemMatchesSelectedLibrary = IsItemInSelectedLibraries(item, selectedLibraryIds);
+            if (!itemMatchesSelectedLibrary && selectedEpisode is null)
             {
-                _logger.LogDebug("Skipping {Name}: selected show filter is set and item is not an episode", item.Name);
+                _logger.LogDebug("Skipping {Name}: item does not match any selected show or library filter", item.Name);
                 return GetExistingSegments(request);
             }
 
-            if (!IsEpisodeInSelectedShows(selectedEpisode, selectedShowIds))
+            if (!itemMatchesSelectedLibrary
+                && !IsEpisodeInSelectedShows(selectedEpisode!, selectedShowIds))
             {
                 _logger.LogDebug(
-                    "Skipping {Name}: series does not match any selected show filter ({SelectedShowCount} selected)",
+                    "Skipping {Name}: item does not match selected filters ({SelectedShowCount} shows, {SelectedLibraryCount} libraries)",
                     item.Name,
-                    selectedShowIds.Count);
+                    selectedShowIds.Count,
+                    selectedLibraryIds.Count);
                 return GetExistingSegments(request);
             }
         }
@@ -264,6 +269,27 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         return selectedShowIds;
     }
 
+    private static HashSet<string> GetSelectedLibraryIds(PluginConfiguration config)
+    {
+        var selectedLibraryIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (string.IsNullOrWhiteSpace(config.SelectedLibraryIds))
+        {
+            return selectedLibraryIds;
+        }
+
+        foreach (var selectedLibraryId in config.SelectedLibraryIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var normalizedSelectedLibraryId = NormalizeShowId(selectedLibraryId);
+            if (!string.IsNullOrWhiteSpace(normalizedSelectedLibraryId))
+            {
+                selectedLibraryIds.Add(normalizedSelectedLibraryId);
+            }
+        }
+
+        return selectedLibraryIds;
+    }
+
     private static bool IsEpisodeInSelectedShows(Episode episode, HashSet<string> selectedShowIds)
     {
         var seriesId = episode.Series?.Id;
@@ -274,6 +300,32 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
 
         return selectedShowIds.Contains(seriesId.Value.ToString("D"))
             || selectedShowIds.Contains(seriesId.Value.ToString("N"));
+    }
+
+    private bool IsItemInSelectedLibraries(BaseItem item, HashSet<string> selectedLibraryIds)
+    {
+        if (selectedLibraryIds.Count == 0)
+        {
+            return false;
+        }
+
+        var selectedLibraryGuids = selectedLibraryIds
+            .Select(selectedLibraryId => Guid.TryParse(selectedLibraryId, out var parsedGuid) ? parsedGuid : Guid.Empty)
+            .Where(parsedGuid => parsedGuid != Guid.Empty)
+            .ToArray();
+
+        if (selectedLibraryGuids.Length == 0 || item.Id == Guid.Empty)
+        {
+            return false;
+        }
+
+        var matchingItems = _libraryManager.GetItemList(new InternalItemsQuery
+        {
+            ItemIds = new[] { item.Id },
+            AncestorIds = selectedLibraryGuids
+        });
+
+        return matchingItems.Count > 0;
     }
 
     private static string NormalizeShowId(string? selectedShowId)

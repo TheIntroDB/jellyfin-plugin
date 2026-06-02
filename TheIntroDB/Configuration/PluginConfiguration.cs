@@ -15,6 +15,7 @@ public class PluginConfiguration : BasePluginConfiguration
         ApiKey = string.Empty;
         SelectedShowId = string.Empty;
         SelectedShowIds = string.Empty;
+        SelectedLibraryIds = string.Empty;
         EnableIntro = true;
         EnableRecap = true;
         EnableCredits = true;
@@ -39,6 +40,12 @@ public class PluginConfiguration : BasePluginConfiguration
     /// When empty, all supported media can be scanned.
     /// </summary>
     public string SelectedShowIds { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional comma-separated Jellyfin library or folder ids to whitelist entire libraries.
+    /// When empty, no full-library whitelist is applied.
+    /// </summary>
+    public string SelectedLibraryIds { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether to provide intro segments from TheIntroDB.
