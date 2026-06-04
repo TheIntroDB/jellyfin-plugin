@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -76,7 +77,7 @@ public class TheIntroDbClient
             Plugin.AnonymousUsageReporter.TrackEvent(
                 _plugin,
                 "theintrodb_api_media_fetch",
-                new System.Collections.Generic.Dictionary<string, object>
+                new Dictionary<string, object>
                 {
                     ["host"] = "jellyfin",
                     ["result"] = "local_ratelimit_active",
@@ -95,31 +96,32 @@ public class TheIntroDbClient
             return null;
         }
 
-        string query;
+        var queryParams = new List<string>(4);
         if (hasTmdb)
         {
-            query = isMovie
-                ? $"?tmdb_id={tmdbIdValue}"
-                : $"?tmdb_id={tmdbIdValue}&season={season}&episode={episode}";
+            queryParams.Add($"tmdb_id={tmdbIdValue}");
         }
         else if (hasTvdb)
         {
-            query = isMovie
-                ? $"?tvdb_id={tvdbIdValue}"
-                : $"?tvdb_id={tvdbIdValue}&season={season}&episode={episode}";
+            queryParams.Add($"tvdb_id={tvdbIdValue}");
         }
         else
         {
-            var encodedImdb = Uri.EscapeDataString(imdbId!);
-            query = isMovie
-                ? $"?imdb_id={encodedImdb}"
-                : $"?imdb_id={encodedImdb}&season={season}&episode={episode}";
+            queryParams.Add($"imdb_id={Uri.EscapeDataString(imdbId!)}");
+        }
+
+        if (!isMovie)
+        {
+            queryParams.Add($"season={season}");
+            queryParams.Add($"episode={episode}");
         }
 
         if (durationMs.HasValue && durationMs.Value > 0)
         {
-            query += $"&duration_ms={durationMs.Value}";
+            queryParams.Add($"duration_ms={durationMs.Value}");
         }
+
+        var query = "?" + string.Join("&", queryParams);
 
         var requestUri = new Uri(baseUrl + "/media" + query, UriKind.Absolute);
         _logger.LogInformation("TheIntroDB API request: {Uri}", requestUri);
@@ -152,7 +154,7 @@ public class TheIntroDbClient
                 Plugin.AnonymousUsageReporter.TrackEvent(
                     _plugin,
                     "theintrodb_api_media_fetch",
-                    new System.Collections.Generic.Dictionary<string, object>
+                    new Dictionary<string, object>
                     {
                         ["host"] = "jellyfin",
                         ["result"] = "http_429",
@@ -170,7 +172,7 @@ public class TheIntroDbClient
                 Plugin.AnonymousUsageReporter.TrackEvent(
                     _plugin,
                     "theintrodb_api_media_fetch",
-                    new System.Collections.Generic.Dictionary<string, object>
+                    new Dictionary<string, object>
                     {
                         ["host"] = "jellyfin",
                         ["result"] = "http_error",
@@ -193,7 +195,7 @@ public class TheIntroDbClient
             Plugin.AnonymousUsageReporter.TrackEvent(
                 _plugin,
                 "theintrodb_api_media_fetch",
-                new System.Collections.Generic.Dictionary<string, object>
+                new Dictionary<string, object>
                 {
                     ["host"] = "jellyfin",
                     ["result"] = result is null ? "success_null" : "success",
@@ -213,7 +215,7 @@ public class TheIntroDbClient
             Plugin.AnonymousUsageReporter.TrackEvent(
                 _plugin,
                 "theintrodb_api_media_fetch",
-                new System.Collections.Generic.Dictionary<string, object>
+                new Dictionary<string, object>
                 {
                     ["host"] = "jellyfin",
                     ["result"] = "exception",

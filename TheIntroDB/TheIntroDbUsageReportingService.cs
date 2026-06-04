@@ -10,6 +10,7 @@ using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Configuration;
 using MediaBrowser.Model.MediaSegments;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace TheIntroDB;
 
@@ -21,12 +22,17 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService
 
     private readonly ISessionManager _sessionManager;
     private readonly IMediaSegmentManager _mediaSegmentManager;
+    private readonly ILogger<TheIntroDbUsageReportingService> _logger;
     private readonly ConcurrentDictionary<string, PlaybackState> _states = new();
 
-    public TheIntroDbUsageReportingService(ISessionManager sessionManager, IMediaSegmentManager mediaSegmentManager)
+    public TheIntroDbUsageReportingService(
+        ISessionManager sessionManager,
+        IMediaSegmentManager mediaSegmentManager,
+        ILogger<TheIntroDbUsageReportingService> logger)
     {
         _sessionManager = sessionManager;
         _mediaSegmentManager = mediaSegmentManager;
+        _logger = logger;
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
@@ -150,8 +156,9 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService
                         ["jump_seconds"] = (int)(delta / TimeSpan.TicksPerSecond)
                     });
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(ex, "Failed to report segment skipped event");
             }
         });
     }

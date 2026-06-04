@@ -82,22 +82,23 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         var selectedLibraryIds = GetSelectedLibraryIds(config);
         if (selectedShowIds.Count > 0 || selectedLibraryIds.Count > 0)
         {
-            var selectedEpisode = item as Episode;
             var itemMatchesSelectedLibrary = IsItemInSelectedLibraries(item, selectedLibraryIds);
-            if (!itemMatchesSelectedLibrary && selectedEpisode is null)
+            if (itemMatchesSelectedLibrary)
             {
-                _logger.LogDebug("Skipping {Name}: item does not match any selected show or library filter", item.Name);
-                return GetExistingSegments(request);
+                // Item is in a selected library, continue.
             }
-
-            if (!itemMatchesSelectedLibrary
-                && !IsEpisodeInSelectedShows(selectedEpisode!, selectedShowIds))
+            else if (item is Episode selectedEpisode && !IsEpisodeInSelectedShows(selectedEpisode, selectedShowIds))
             {
                 _logger.LogDebug(
                     "Skipping {Name}: item does not match selected filters ({SelectedShowCount} shows, {SelectedLibraryCount} libraries)",
                     item.Name,
                     selectedShowIds.Count,
                     selectedLibraryIds.Count);
+                return GetExistingSegments(request);
+            }
+            else if (item is not Episode)
+            {
+                _logger.LogDebug("Skipping {Name}: item does not match any selected show or library filter", item.Name);
                 return GetExistingSegments(request);
             }
         }
@@ -181,24 +182,24 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
 
         var segments = new List<MediaSegmentDto>();
 
-        if (config.EnableIntro && AddSegment(media.Intro, true, MediaSegmentType.Intro, request.ItemId, runTimeTicks, segments))
+        if (config.EnableIntro)
         {
-            // Added
+            AddSegment(media.Intro, true, MediaSegmentType.Intro, request.ItemId, runTimeTicks, segments);
         }
 
-        if (config.EnableRecap && AddSegment(media.Recap, true, MediaSegmentType.Recap, request.ItemId, runTimeTicks, segments))
+        if (config.EnableRecap)
         {
-            // Added
+            AddSegment(media.Recap, true, MediaSegmentType.Recap, request.ItemId, runTimeTicks, segments);
         }
 
-        if (config.EnableCredits && AddSegment(media.Credits, false, MediaSegmentType.Outro, request.ItemId, runTimeTicks, segments))
+        if (config.EnableCredits)
         {
-            // Added
+            AddSegment(media.Credits, false, MediaSegmentType.Outro, request.ItemId, runTimeTicks, segments);
         }
 
-        if (config.EnablePreview && AddSegment(media.Preview, false, MediaSegmentType.Preview, request.ItemId, runTimeTicks, segments))
+        if (config.EnablePreview)
         {
-            // Added
+            AddSegment(media.Preview, false, MediaSegmentType.Preview, request.ItemId, runTimeTicks, segments);
         }
 
         var introCount = segments.Count(s => s.Type == MediaSegmentType.Intro);
@@ -235,7 +236,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
     public ValueTask<bool> Supports(BaseItem item)
     {
         var supported = item is Episode or Movie;
-        _logger.LogDebug("Supports({Name}, {Type}): {Supported}", item?.Name ?? "null", item?.GetType().Name ?? "null", supported);
+        _logger.LogTrace("Supports({Name}, {Type}): {Supported}", item?.Name ?? "null", item?.GetType().Name ?? "null", supported);
         return ValueTask.FromResult(supported);
     }
 
@@ -383,7 +384,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         return null;
     }
 
-    private static bool AddSegment(
+    private static void AddSegment(
         IEnumerable<SegmentTimestamp>? stamps,
         bool endRequired,
         MediaSegmentType type,
@@ -393,10 +394,9 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
     {
         if (stamps is null)
         {
-            return false;
+            return;
         }
 
-        var added = false;
         foreach (var stamp in stamps)
         {
             if (stamp is null || !stamp.HasValidRange(endRequired))
@@ -435,9 +435,6 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
                 ItemId = itemId,
                 Type = type
             });
-            added = true;
         }
-
-        return added;
     }
 }

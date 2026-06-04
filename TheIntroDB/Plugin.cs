@@ -21,6 +21,9 @@ namespace TheIntroDB;
 /// </summary>
 public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 {
+    private static readonly object RateLimitLock = new();
+    private static DateTime _rateLimitExpiryUtc;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="Plugin"/> class.
     /// </summary>
@@ -44,7 +47,24 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
     /// </summary>
     public static Plugin? Instance { get; private set; }
 
-    internal static DateTime RateLimitExpiryUtc { get; set; }
+    internal static DateTime RateLimitExpiryUtc
+    {
+        get
+        {
+            lock (RateLimitLock)
+            {
+                return _rateLimitExpiryUtc;
+            }
+        }
+
+        set
+        {
+            lock (RateLimitLock)
+            {
+                _rateLimitExpiryUtc = value;
+            }
+        }
+    }
 
     internal static void TrackAnonymousUsageEvent(string eventName, Dictionary<string, object>? props = null)
     {
@@ -93,83 +113,80 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages
 
         internal static void TrackEvent(Plugin? plugin, string eventName, Dictionary<string, object>? props = null)
         {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await TrackEventAsync(plugin, eventName, props).ConfigureAwait(false);
-                }
-                catch
-                {
-                }
-            });
+            _ = TrackEventAsync(plugin, eventName, props);
         }
 
         private static async Task TrackEventAsync(Plugin? plugin, string eventName, Dictionary<string, object>? props)
         {
-            if (plugin is null)
+            try
             {
-                return;
-            }
-
-            var config = plugin.Configuration;
-            if (config is null || !config.EnableAnonymousUsageReporting)
-            {
-                return;
-            }
-
-            var appKey = AppKey;
-            if (string.IsNullOrWhiteSpace(appKey))
-            {
-                return;
-            }
-
-            if (!Uri.TryCreate(Host, UriKind.Absolute, out var hostUri))
-            {
-                return;
-            }
-
-            var version = plugin.GetType().Assembly.GetName().Version?.ToString() ?? "0.0.0";
-            var payload = new[]
-            {
-                new AptabaseEvent
+                if (plugin is null)
                 {
-                    Timestamp = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture),
-                    SessionId = SessionId,
-                    EventName = eventName,
-                    SystemProps = new Dictionary<string, object>
-                    {
-                        ["locale"] = CultureInfo.CurrentCulture.Name,
-                        ["osName"] = Environment.OSVersion.Platform.ToString(),
-                        ["osVersion"] = Environment.OSVersion.Version.ToString(),
-                        ["isDebug"] =
-#if DEBUG
-                            true,
-#else
-                            false,
-#endif
-                        ["appVersion"] = version,
-                        ["sdkVersion"] = "theintrodb-jellyfin-plugin@" + version
-                    },
-                    Props = MergeProps(
-                        new Dictionary<string, object>
-                        {
-                            ["plugin"] = plugin.Name,
-                            ["plugin_version"] = version
-                        },
-                        props)
+                    return;
                 }
-            };
 
-            var json = JsonSerializer.Serialize(payload);
-            var requestUri = new Uri(hostUri.AbsoluteUri.TrimEnd('/') + "/api/v0/events", UriKind.Absolute);
-            using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
-            request.Headers.TryAddWithoutValidation("App-Key", appKey);
-            request.Headers.UserAgent.Clear();
-            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("theintrodb-jellyfin-plugin", version));
-            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                var config = plugin.Configuration;
+                if (config is null || !config.EnableAnonymousUsageReporting)
+                {
+                    return;
+                }
 
-            using var response = await HttpClient.SendAsync(request).ConfigureAwait(false);
+                var appKey = AppKey;
+                if (string.IsNullOrWhiteSpace(appKey))
+                {
+                    return;
+                }
+
+                if (!Uri.TryCreate(Host, UriKind.Absolute, out var hostUri))
+                {
+                    return;
+                }
+
+                var version = plugin.GetType().Assembly.GetName().Version?.ToString() ?? "0.0.0";
+                var payload = new[]
+                {
+                    new AptabaseEvent
+                    {
+                        Timestamp = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+                        SessionId = SessionId,
+                        EventName = eventName,
+                        SystemProps = new Dictionary<string, object>
+                        {
+                            ["locale"] = CultureInfo.CurrentCulture.Name,
+                            ["osName"] = Environment.OSVersion.Platform.ToString(),
+                            ["osVersion"] = Environment.OSVersion.Version.ToString(),
+                            ["isDebug"] =
+#if DEBUG
+                                true,
+#else
+                                false,
+#endif
+                            ["appVersion"] = version,
+                            ["sdkVersion"] = "theintrodb-jellyfin-plugin@" + version
+                        },
+                        Props = MergeProps(
+                            new Dictionary<string, object>
+                            {
+                                ["plugin"] = plugin.Name,
+                                ["plugin_version"] = version
+                            },
+                            props)
+                    }
+                };
+
+                var json = JsonSerializer.Serialize(payload);
+                var requestUri = new Uri(hostUri.AbsoluteUri.TrimEnd('/') + "/api/v0/events", UriKind.Absolute);
+                using var request = new HttpRequestMessage(HttpMethod.Post, requestUri);
+                request.Headers.TryAddWithoutValidation("App-Key", appKey);
+                request.Headers.UserAgent.Clear();
+                request.Headers.UserAgent.Add(new ProductInfoHeaderValue("theintrodb-jellyfin-plugin", version));
+                request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                using var response = await HttpClient.SendAsync(request).ConfigureAwait(false);
+            }
+            catch
+            {
+            }
         }
 
         private static Dictionary<string, object> MergeProps(Dictionary<string, object> baseProps, Dictionary<string, object>? extraProps)
