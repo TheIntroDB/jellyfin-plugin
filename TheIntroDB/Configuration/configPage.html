@@ -373,7 +373,7 @@
 
                 function formatStatValue(label, value) {
                     if (label === 'acceptance_rate' && typeof value === 'number') {
-                        return value + '%';
+                        return value.toFixed(2) + '%';
                     }
 
                     if (label === 'total_time_saved_ms' && typeof value === 'number') {
