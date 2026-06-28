@@ -66,6 +66,13 @@
                     </div>
                     <div class="checkboxContainer checkboxContainer-withDescription">
                         <label class="emby-checkbox-label">
+                            <input id="EnableOnDemandFetch" name="EnableOnDemandFetch" type="checkbox" is="emby-checkbox" />
+                            <span>Automatically fetch segments on item addition</span>
+                        </label>
+                        <div class="fieldDescription">When enabled, segments will be fetched for newly added items, so long as no segments exist yet.</div>
+                    </div>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
                             <input id="EnableAnonymousUsageReporting" name="EnableAnonymousUsageReporting" type="checkbox" is="emby-checkbox" />
                             <span>Enable anonymous usage reporting</span>
                         </label>
@@ -1067,6 +1074,7 @@
                                 document.querySelector('#EnableCredits').checked = config.EnableCredits !== false;
                                 document.querySelector('#EnablePreview').checked = config.EnablePreview !== false;
                                 document.querySelector('#IgnoreMediaWithExistingSegments').checked = config.IgnoreMediaWithExistingSegments !== false;
+                                document.querySelector('#EnableOnDemandFetch').checked = config.EnableOnDemandFetch !== false;
                                 document.querySelector('#EnableAnonymousUsageReporting').checked = config.EnableAnonymousUsageReporting !== false;
                                 if (apiKeyInput.value) {
                                     return validateApiKey(apiKeyInput.value, true);
@@ -1189,6 +1197,7 @@
                             config.EnableCredits = document.querySelector('#EnableCredits').checked;
                             config.EnablePreview = document.querySelector('#EnablePreview').checked;
                             config.IgnoreMediaWithExistingSegments = document.querySelector('#IgnoreMediaWithExistingSegments').checked;
+                            config.EnableOnDemandFetch = document.querySelector('#EnableOnDemandFetch').checked;
                             config.EnableAnonymousUsageReporting = document.querySelector('#EnableAnonymousUsageReporting').checked;
                             ApiClient.updatePluginConfiguration(pluginUniqueId, config).then(function (result) {
                                 Dashboard.processPluginConfigurationUpdateResult(result);
