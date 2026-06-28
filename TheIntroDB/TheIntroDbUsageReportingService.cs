@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaSegments;
 using MediaBrowser.Controller.Session;
@@ -11,6 +12,7 @@ using MediaBrowser.Model.Configuration;
 using MediaBrowser.Model.MediaSegments;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using TheIntroDB.Configuration;
 
 namespace TheIntroDB;
 
@@ -22,16 +24,19 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService
 
     private readonly ISessionManager _sessionManager;
     private readonly IMediaSegmentManager _mediaSegmentManager;
+    private readonly ILibraryManager _libraryManager;
     private readonly ILogger<TheIntroDbUsageReportingService> _logger;
     private readonly ConcurrentDictionary<string, PlaybackState> _states = new();
 
     public TheIntroDbUsageReportingService(
         ISessionManager sessionManager,
         IMediaSegmentManager mediaSegmentManager,
+        ILibraryManager libraryManager,
         ILogger<TheIntroDbUsageReportingService> logger)
     {
         _sessionManager = sessionManager;
         _mediaSegmentManager = mediaSegmentManager;
+        _libraryManager = libraryManager;
         _logger = logger;
     }
 
@@ -39,6 +44,8 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService
     {
         _sessionManager.PlaybackProgress += SessionManager_PlaybackProgress;
         _sessionManager.PlaybackStopped += SessionManager_PlaybackStopped;
+        _sessionManager.PlaybackStart += SessionManager_PlaybackStart;
+        _libraryManager.ItemAdded += LibraryManager_ItemAdded;
         return Task.CompletedTask;
     }
 
@@ -46,6 +53,8 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService
     {
         _sessionManager.PlaybackProgress -= SessionManager_PlaybackProgress;
         _sessionManager.PlaybackStopped -= SessionManager_PlaybackStopped;
+        _sessionManager.PlaybackStart -= SessionManager_PlaybackStart;
+        _libraryManager.ItemAdded -= LibraryManager_ItemAdded;
         return Task.CompletedTask;
     }
 
@@ -161,6 +170,54 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService
                 _logger.LogWarning(ex, "Failed to report segment skipped event");
             }
         });
+    }
+
+    private void SessionManager_PlaybackStart(object? sender, PlaybackProgressEventArgs e)
+    {
+        if (e?.Item is null)
+        {
+            return;
+        }
+
+        _ = OnDemandFetchAsync(e.Item, "playback_start");
+    }
+
+    private void LibraryManager_ItemAdded(object? sender, ItemChangeEventArgs e)
+    {
+        if (e?.Item is null)
+        {
+            return;
+        }
+
+        _ = OnDemandFetchAsync(e.Item, "item_added");
+    }
+
+    private async Task OnDemandFetchAsync(BaseItem item, string trigger)
+    {
+        try
+        {
+            if (Plugin.Instance?.Configuration is not PluginConfiguration config || !config.EnableOnDemandFetch)
+            {
+                return;
+            }
+
+            if (_mediaSegmentManager.HasSegments(item.Id))
+            {
+                _logger.LogDebug("On-demand fetch skipped ({Trigger}): segments already exist for {Name}", trigger, item.Name);
+                return;
+            }
+
+            var libOptions = _libraryManager.GetLibraryOptions(item);
+            _logger.LogInformation("On-demand segment fetch triggered ({Trigger}) for {Name} ({Type})", trigger, item.Name, item.GetType().Name);
+
+            await _mediaSegmentManager.RunSegmentPluginProviders(item, libOptions, false, CancellationToken.None).ConfigureAwait(false);
+
+            _logger.LogInformation("On-demand segment fetch completed ({Trigger}) for {Name}", trigger, item.Name);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "On-demand segment fetch failed ({Trigger}) for {Name}", trigger, item?.Name ?? "null");
+        }
     }
 
     private sealed class PlaybackState

@@ -77,4 +77,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets a value indicating whether anonymous usage reporting is enabled.
     /// </summary>
     public bool EnableAnonymousUsageReporting { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to automatically fetch segments for newly added items and on playback start.
+    /// </summary>
+    public bool EnableOnDemandFetch { get; set; } = true;
 }
