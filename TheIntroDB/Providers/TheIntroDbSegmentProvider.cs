@@ -127,6 +127,16 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             episode = ep.IndexNumber;
             _logger.LogInformation("Episode: Name={Name}, Series={Series}, S{Season}E{Episode}, TmdbId={TmdbId}, TvdbId={TvdbId}, ImdbId={ImdbId}", item.Name, ep.SeriesName, season, episode, tmdbId, tvdbId, imdbId ?? "(none)");
         }
+        else if (item is Video video)
+        {
+            isMovie = false;
+            tmdbId = GetTmdbId(video);
+            tvdbId = GetTvdbId(video);
+            imdbId = GetImdbId(video);
+            season = video.ParentIndexNumber;
+            episode = video.IndexNumber;
+            _logger.LogInformation("Video: Name={Name}, TmdbId={TmdbId}, TvdbId={TvdbId}, ImdbId={ImdbId}, Season={Season}, Episode={Episode}", item.Name, tmdbId, tvdbId, imdbId ?? "(none)", season, episode);
+        }
 
         if ((!tmdbId.HasValue || tmdbId.Value <= 0) && (!tvdbId.HasValue || tvdbId.Value <= 0) && string.IsNullOrWhiteSpace(imdbId))
         {
@@ -235,7 +245,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
     /// <inheritdoc />
     public ValueTask<bool> Supports(BaseItem item)
     {
-        var supported = item is Episode or Movie;
+        var supported = item is Episode or Movie or Video;
         _logger.LogTrace("Supports({Name}, {Type}): {Supported}", item?.Name ?? "null", item?.GetType().Name ?? "null", supported);
         return ValueTask.FromResult(supported);
     }
