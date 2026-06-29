@@ -2,9 +2,12 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.Movies;
+using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaSegments;
 using MediaBrowser.Controller.Session;
@@ -16,7 +19,7 @@ using TheIntroDB.Configuration;
 
 namespace TheIntroDB;
 
-internal sealed class TheIntroDbUsageReportingService : IHostedService
+internal sealed class TheIntroDbUsageReportingService : IHostedService, IDisposable
 {
     private const long MinJumpTicks = 15 * TimeSpan.TicksPerSecond;
     private const long SegmentEndToleranceTicks = 5 * TimeSpan.TicksPerSecond;
@@ -27,6 +30,8 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService
     private readonly ILibraryManager _libraryManager;
     private readonly ILogger<TheIntroDbUsageReportingService> _logger;
     private readonly ConcurrentDictionary<string, PlaybackState> _states = new();
+    private readonly CancellationTokenSource _cts = new();
+    private readonly ConcurrentDictionary<long, Task> _pendingTasks = new();
 
     public TheIntroDbUsageReportingService(
         ISessionManager sessionManager,
@@ -49,13 +54,37 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService
         return Task.CompletedTask;
     }
 
-    public Task StopAsync(CancellationToken cancellationToken)
+    public async Task StopAsync(CancellationToken cancellationToken)
     {
         _sessionManager.PlaybackProgress -= SessionManager_PlaybackProgress;
         _sessionManager.PlaybackStopped -= SessionManager_PlaybackStopped;
         _sessionManager.PlaybackStart -= SessionManager_PlaybackStart;
         _libraryManager.ItemAdded -= LibraryManager_ItemAdded;
-        return Task.CompletedTask;
+
+        // Signal in-flight tasks to finish and wait for them (with timeout)
+        await _cts.CancelAsync().ConfigureAwait(false);
+        try
+        {
+            var snapshot = _pendingTasks.Values.ToArray();
+            if (snapshot.Length > 0)
+            {
+                var timeoutTask = Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                var waitTask = Task.WhenAll(snapshot);
+                await Task.WhenAny(waitTask, timeoutTask).ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            // Swallow task exceptions during shutdown — they were already logged
+        }
+
+        _cts.Dispose();
+    }
+
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
     }
 
     private void SessionManager_PlaybackStopped(object? sender, PlaybackStopEventArgs e)
@@ -114,7 +143,7 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService
         }
 
         var capturedItem = e.Item;
-        _ = Task.Run(async () =>
+        _ = TrackTaskAsync(Task.Run(async () =>
         {
             try
             {
@@ -169,7 +198,7 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService
             {
                 _logger.LogWarning(ex, "Failed to report segment skipped event");
             }
-        });
+        }));
     }
 
     private void SessionManager_PlaybackStart(object? sender, PlaybackProgressEventArgs e)
@@ -179,20 +208,21 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService
             return;
         }
 
-        _ = OnDemandFetchAsync(e.Item, "playback_start");
+        _ = TrackTaskAsync(OnDemandFetchAsync(e.Item, "playback_start", _cts.Token));
     }
 
     private void LibraryManager_ItemAdded(object? sender, ItemChangeEventArgs e)
     {
-        if (e?.Item is null)
+        var item = e?.Item;
+        if (item is not Episode && item is not Movie)
         {
             return;
         }
 
-        _ = OnDemandFetchAsync(e.Item, "item_added");
+        _ = TrackTaskAsync(OnDemandFetchAsync(item, "item_added", _cts.Token));
     }
 
-    private async Task OnDemandFetchAsync(BaseItem item, string trigger)
+    private async Task OnDemandFetchAsync(BaseItem item, string trigger, CancellationToken cancellationToken)
     {
         try
         {
@@ -210,13 +240,32 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService
             var libOptions = _libraryManager.GetLibraryOptions(item);
             _logger.LogInformation("On-demand segment fetch triggered ({Trigger}) for {Name} ({Type})", trigger, item.Name, item.GetType().Name);
 
-            await _mediaSegmentManager.RunSegmentPluginProviders(item, libOptions, false, CancellationToken.None).ConfigureAwait(false);
+            await _mediaSegmentManager.RunSegmentPluginProviders(item, libOptions, false, cancellationToken).ConfigureAwait(false);
 
             _logger.LogInformation("On-demand segment fetch completed ({Trigger}) for {Name}", trigger, item.Name);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "On-demand segment fetch failed ({Trigger}) for {Name}", trigger, item?.Name ?? "null");
+        }
+    }
+
+    private async Task TrackTaskAsync(Task task)
+    {
+        // Register the task so StopAsync can wait for it to complete
+        var key = task.Id;
+        _pendingTasks.TryAdd(key, task);
+        try
+        {
+            await task.ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected during shutdown — swallow
+        }
+        finally
+        {
+            _pendingTasks.TryRemove(key, out _);
         }
     }
 
