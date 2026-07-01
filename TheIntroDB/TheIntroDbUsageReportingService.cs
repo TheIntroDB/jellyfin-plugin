@@ -32,6 +32,7 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService, IDisposa
     private readonly ConcurrentDictionary<string, PlaybackState> _states = new();
     private readonly CancellationTokenSource _cts = new();
     private readonly ConcurrentDictionary<long, Task> _pendingTasks = new();
+    private static readonly char[] CommaSeparator = { ',' };
 
     public TheIntroDbUsageReportingService(
         ISessionManager sessionManager,
@@ -231,6 +232,12 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService, IDisposa
                 return;
             }
 
+            if (!IsItemAllowedByFilters(item, config))
+            {
+                _logger.LogDebug("On-demand fetch skipped ({Trigger}): {Name} not in selected libraries/shows", trigger, item.Name);
+                return;
+            }
+
             if (_mediaSegmentManager.HasSegments(item.Id))
             {
                 _logger.LogDebug("On-demand fetch skipped ({Trigger}): segments already exist for {Name}", trigger, item.Name);
@@ -248,6 +255,77 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService, IDisposa
         {
             _logger.LogWarning(ex, "On-demand segment fetch failed ({Trigger}) for {Name}", trigger, item?.Name ?? "null");
         }
+    }
+
+    private static bool IsItemAllowedByFilters(BaseItem item, PluginConfiguration config)
+    {
+        var selectedLibraryIds = ParseIdList(config.SelectedLibraryIds);
+        var selectedShowIds = ParseIdList(config.SelectedShowIds);
+
+        // Include legacy SelectedShowId
+        var legacyShowId = config.SelectedShowId?.Trim();
+        if (!string.IsNullOrWhiteSpace(legacyShowId))
+        {
+            selectedShowIds.Add(legacyShowId);
+        }
+
+        bool hasLibraryFilter = selectedLibraryIds.Count > 0;
+        bool hasShowFilter = selectedShowIds.Count > 0;
+
+        if (!hasLibraryFilter && !hasShowFilter)
+        {
+            return true;
+        }
+
+        if (hasLibraryFilter)
+        {
+            BaseItem current = item;
+            while (current != null)
+            {
+                if (selectedLibraryIds.Contains(current.Id.ToString("N")) ||
+                    selectedLibraryIds.Contains(current.Id.ToString("D")))
+                {
+                    return true;
+                }
+
+                current = current.GetParent();
+            }
+        }
+
+        if (hasShowFilter)
+        {
+            if (item is Movie &&
+                (selectedShowIds.Contains(item.Id.ToString("N")) ||
+                 selectedShowIds.Contains(item.Id.ToString("D"))))
+            {
+                return true;
+            }
+
+            if (item is Episode episode)
+            {
+                var seriesId = episode.Series?.Id;
+                if (seriesId.HasValue && seriesId.Value != Guid.Empty &&
+                    (selectedShowIds.Contains(seriesId.Value.ToString("N")) ||
+                     selectedShowIds.Contains(seriesId.Value.ToString("D"))))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static HashSet<string> ParseIdList(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return new HashSet<string>(
+            raw.Split(CommaSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task TrackTaskAsync(Task task)
