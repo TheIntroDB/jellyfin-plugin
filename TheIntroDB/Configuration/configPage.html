@@ -78,6 +78,11 @@
                         </label>
                         <div class="fieldDescription">When enabled, anonymous usage metrics may be collected to help improve the plugin.</div>
                     </div>
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Remove TheIntroDB Segments</h3>
+                        <div class="fieldDescription">This removes TheIntroDB-provided segments (intro, recap, credits, preview) from the selected items. The items will be rescanned on the next scheduled segment scan. Only TheIntroDB segments are removed — segments from other providers are preserved.</div>
+                        <button id="OpenRemoveSegmentPicker" is="emby-button" type="button" class="raised emby-button">Select items to clean up</button>
+                    </div>
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block emby-button">
                             <span>Save</span>
@@ -119,6 +124,16 @@
                 <div id="ApiStatsContent" style="margin-top: 1em; overflow-y: auto;"></div>
             </div>
         </div>
+        <div id="RemoveResultOverlay" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); z-index: 100002; padding: 1.5em; box-sizing: border-box; align-items: center; justify-content: center; overflow-y: auto;">
+            <div style="width: min(680px, calc(100vw - 3rem)); margin: auto; background: #101010; border-radius: 0.5em; padding: 1.5em; max-height: calc(100vh - 3rem); display: flex; flex-direction: column; box-sizing: border-box; box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);">
+                <div class="sectionTitleContainer flex align-items-center" style="justify-content: space-between;">
+                    <h2 class="sectionTitle" style="margin: 0;">Remove Segments Results</h2>
+                    <button id="CloseRemoveResult" is="emby-button" type="button" class="raised emby-button">Close</button>
+                </div>
+                <div id="RemoveResultSummary" style="margin-top: 1em;" class="fieldDescription"></div>
+                <div id="RemoveResultContent" style="margin-top: 1em; overflow-y: auto;"></div>
+            </div>
+        </div>
         <script type="text/javascript">
             (function () {
                 var pluginUniqueId = 'c9e41b95-63e4-45e2-9db6-b83df21ae5e7';
@@ -156,6 +171,11 @@
                 var showPickerSearchElement = document.querySelector('#ShowPickerSearch');
                 var showPickerStatusElement = document.querySelector('#ShowPickerStatus');
                 var showPickerListElement = document.querySelector('#ShowPickerList');
+                var removeMode = false;
+                var removeResultOverlay = document.querySelector('#RemoveResultOverlay');
+                var removeResultContentElement = document.querySelector('#RemoveResultContent');
+                var removeResultSummaryElement = document.querySelector('#RemoveResultSummary');
+                var openRemoveSegmentPickerBtn = document.querySelector('#OpenRemoveSegmentPicker');
 
                 function normalizeId(value) {
                     return (value || '').toString().replace(/-/g, '').toLowerCase();
@@ -729,7 +749,9 @@
                     var browsingLibrary = getLibraryById(currentBrowseLibraryId);
                     var isBrowsingLibrary = !!browsingLibrary;
 
-                    showPickerTitleElement.textContent = isBrowsingLibrary ? getLibraryDisplayLabel(browsingLibrary) : 'Choose Libraries';
+                    showPickerTitleElement.textContent = isBrowsingLibrary
+                        ? getLibraryDisplayLabel(browsingLibrary)
+                        : (removeMode ? 'Select items to clean up' : 'Choose Libraries');
                     showPickerBackButton.style.display = isBrowsingLibrary ? 'inline-flex' : 'none';
                     showPickerWhitelistButton.style.display = isBrowsingLibrary ? 'inline-flex' : 'none';
                     showPickerWhitelistButton.textContent = isBrowsingLibrary && isIdSelected(currentBrowseLibraryId, pickerSelectedLibraryIds)
@@ -1023,6 +1045,7 @@
                 }
 
                 function openShowPicker() {
+                    removeMode = false;
                     showPickerOverlay.style.display = 'flex';
                     showPickerSearchElement.value = '';
                     pickerSelectedLibraryIds = selectedLibraryIds.slice();
@@ -1040,8 +1063,145 @@
                 }
 
                 function closeShowPicker() {
+                    removeMode = false;
                     showPickerOverlay.style.display = 'none';
                     showLibraryRoot();
+                }
+
+                function openRemoveSegmentPicker() {
+                    removeMode = true;
+                    showPickerOverlay.style.display = 'flex';
+                    showPickerSearchElement.value = '';
+                    pickerSelectedLibraryIds = [];
+                    pickerSelectedShowIds = [];
+                    renderPickerHeader();
+                    showPickerStatusElement.textContent = 'Loading libraries...';
+
+                    loadLibraries().then(function () {
+                        showLibraryRoot();
+                        showPickerSearchElement.focus();
+                    }).catch(function () {
+                        showPickerStatusElement.textContent = 'Could not load libraries right now.';
+                        showPickerSearchElement.focus();
+                    });
+                }
+
+                function executeRemoveSegments() {
+                    Dashboard.showLoadingMsg();
+
+                    var itemIds = [];
+                    var promises = [];
+
+                    pickerSelectedLibraryIds.forEach(function (libraryId) {
+                        promises.push(
+                            getJson(ApiClient.getUrl('Users/' + currentUserId + '/Items', {
+                                ParentId: libraryId,
+                                Recursive: true,
+                                IncludeItemTypes: 'Episode,Movie',
+                                Fields: 'Id',
+                                EnableTotalRecordCount: false,
+                                Limit: 10000
+                            })).then(function (result) {
+                                var items = (result && (result.Items || result.items)) || [];
+                                items.forEach(function (item) {
+                                    if (item && item.Id) {
+                                        itemIds.push(item.Id);
+                                    }
+                                });
+                            }).catch(function () {
+                            })
+                        );
+                    });
+
+                    pickerSelectedShowIds.forEach(function (showId) {
+                        promises.push(
+                            getJson(ApiClient.getUrl('Users/' + currentUserId + '/Items', {
+                                ParentId: showId,
+                                Recursive: true,
+                                IncludeItemTypes: 'Episode',
+                                Fields: 'Id',
+                                EnableTotalRecordCount: false,
+                                Limit: 10000
+                            })).then(function (result) {
+                                var items = (result && (result.Items || result.items)) || [];
+                                items.forEach(function (item) {
+                                    if (item && item.Id) {
+                                        itemIds.push(item.Id);
+                                    }
+                                });
+                            }).catch(function () {
+                            })
+                        );
+                    });
+
+                    Promise.all(promises).then(function () {
+                        itemIds = dedupeIds(itemIds);
+
+                        if (!itemIds.length) {
+                            Dashboard.hideLoadingMsg();
+                            showRemoveResults({
+                                TotalItems: 0,
+                                TotalSegmentsRemoved: 0,
+                                Results: []
+                            });
+                            return;
+                        }
+
+                        return ApiClient.ajax({
+                            type: 'DELETE',
+                            url: ApiClient.getUrl('Plugins/TheIntroDB/Segments/Chapters'),
+                            dataType: 'json',
+                            contentType: 'application/json; charset=utf-8',
+                            data: JSON.stringify({ ItemIds: itemIds })
+                        }).then(function (response) {
+                            closeShowPicker();
+                            showRemoveResults(response);
+                        }).catch(function (error) {
+                            console.error('Remove segments request failed:', error);
+                            Dashboard.hideLoadingMsg();
+                            Dashboard.alert({
+                                message: 'Failed to remove segments. Check logs for details.',
+                                title: 'Error'
+                            });
+                        });
+                    }).catch(function () {
+                        Dashboard.hideLoadingMsg();
+                        Dashboard.alert({
+                            message: 'Failed to resolve item IDs.',
+                            title: 'Error'
+                        });
+                    });
+                }
+
+                function showRemoveResults(response) {
+                    removeResultOverlay.style.display = 'flex';
+
+                    if (!response || !response.Results) {
+                        removeResultSummaryElement.textContent = 'No results returned.';
+                        removeResultContentElement.innerHTML = '';
+                        return;
+                    }
+
+                    removeResultSummaryElement.textContent = 'Processed ' + response.TotalItems
+                        + ' items, removed ' + response.TotalSegmentsRemoved + ' segments.';
+
+                    removeResultContentElement.innerHTML = '';
+
+                    if (response.Results.length) {
+                        var list = document.createElement('div');
+                        list.style.maxHeight = '400px';
+                        list.style.overflowY = 'auto';
+
+                        response.Results.forEach(function (result) {
+                            var row = document.createElement('div');
+                            row.style.padding = '0.6em 0';
+                            row.style.borderBottom = '1px solid rgba(255, 255, 255, 0.08)';
+                            row.textContent = result.Name + ': ' + result.SegmentsRemoved + ' segments removed';
+                            list.appendChild(row);
+                        });
+
+                        removeResultContentElement.appendChild(list);
+                    }
                 }
 
                 document.querySelector('#TheIntroDbConfigPage')
@@ -1097,7 +1257,11 @@
 
                 document.querySelector('#DoneShowPicker')
                     .addEventListener('click', function () {
-                        applyPickerSelection();
+                        if (removeMode) {
+                            executeRemoveSegments();
+                        } else {
+                            applyPickerSelection();
+                        }
                     });
 
                 showPickerBackButton
@@ -1204,6 +1368,23 @@
                             });
                         });
                         return false;
+                    });
+
+                openRemoveSegmentPickerBtn
+                    .addEventListener('click', function () {
+                        openRemoveSegmentPicker();
+                    });
+
+                removeResultOverlay
+                    .addEventListener('click', function (event) {
+                        if (event.target === removeResultOverlay) {
+                            removeResultOverlay.style.display = 'none';
+                        }
+                    });
+
+                document.querySelector('#CloseRemoveResult')
+                    .addEventListener('click', function () {
+                        removeResultOverlay.style.display = 'none';
                     });
 
                 updateSelectedSummary();
