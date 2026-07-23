@@ -112,6 +112,12 @@ public class TheIntroDbClient
 
         if (!isMovie)
         {
+            if (!season.HasValue || !episode.HasValue)
+            {
+                _logger.LogWarning("Skipping TV show request: missing season ({Season}) or episode ({Episode}) for tmdbId={TmdbId}, tvdbId={TvdbId}, imdbId={ImdbId}", season, episode, tmdbIdValue, tvdbIdValue, imdbId ?? "(none)");
+                return null;
+            }
+
             queryParams.Add($"season={season}");
             queryParams.Add($"episode={episode}");
         }
