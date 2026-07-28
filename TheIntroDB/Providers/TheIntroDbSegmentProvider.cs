@@ -250,6 +250,14 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         return ValueTask.FromResult(supported);
     }
 
+    /// <inheritdoc />
+    public Task CleanupExtractedData(Guid itemId, CancellationToken cancellationToken)
+    {
+        // TheIntroDB does not cache any analysis data locally, so cleanup is a no-op.
+        _logger.LogDebug("CleanupExtractedData called for ItemId={ItemId}: no-op", itemId);
+        return Task.CompletedTask;
+    }
+
     private static List<MediaSegmentDto> GetExistingSegments(MediaSegmentGenerationRequest request)
     {
         return (request.ExistingSegments ?? Array.Empty<MediaSegmentDto>()).ToList();
