@@ -181,12 +181,26 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         long? durationMs = item.RunTimeTicks.HasValue && item.RunTimeTicks.Value > 0
             ? item.RunTimeTicks.Value / TimeSpan.TicksPerMillisecond
             : null;
-        var media = await client.GetMediaAsync(tmdbId, tvdbId, imdbId, isMovie, season, episode, durationMs, cancellationToken).ConfigureAwait(false);
-        if (media is null)
+        var result = await client.GetMediaAsync(tmdbId, tvdbId, imdbId, isMovie, season, episode, durationMs, cancellationToken).ConfigureAwait(false);
+        if (result.IsRateLimited || result.IsError)
+        {
+            // Never treat a transient rate limit or error as an empty dataset:
+            // returning empty would make Jellyfin delete the segments this
+            // plugin already stored for the item.
+            _logger.LogWarning(
+                "TheIntroDB API request was {Status} for {Name}; preserving existing segments",
+                result.IsRateLimited ? "rate limited" : "an error",
+                item.Name);
+            return GetExistingSegments(request);
+        }
+
+        if (result.IsNotFound || result.Response is null)
         {
             _logger.LogInformation("TheIntroDB API returned no data for {Name}", item.Name);
             return Array.Empty<MediaSegmentDto>();
         }
+
+        var media = result.Response;
 
         long? runTimeTicks = item.RunTimeTicks;
 
