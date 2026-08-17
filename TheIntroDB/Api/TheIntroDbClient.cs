@@ -16,7 +16,7 @@ namespace TheIntroDB.Api;
 /// </summary>
 public class TheIntroDbClient
 {
-    private const int MaxRequestsPerWindow = 30;
+    private const int MaxRequestsPerWindow = 25;
     private static readonly TimeSpan RateLimitWindow = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan MinDelayBetweenRequests = TimeSpan.FromMilliseconds(RateLimitWindow.TotalMilliseconds / MaxRequestsPerWindow);
 
@@ -51,8 +51,8 @@ public class TheIntroDbClient
     /// <param name="episode">Episode number (required for TV).</param>
     /// <param name="durationMs">Optional total video duration (milliseconds). Recommended for best matching release version.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Media response or null if not found or error.</returns>
-    public async Task<MediaResponse?> GetMediaAsync(
+    /// <returns>Media fetch result distinguishing rate limits, errors and not-found.</returns>
+    public async Task<MediaFetchResult> GetMediaAsync(
         int? tmdbId,
         int? tvdbId,
         string? imdbId,
@@ -85,7 +85,7 @@ public class TheIntroDbClient
                     ["id_source"] = idSource,
                     ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(_plugin.Configuration?.ApiKey) ? 1 : 0
                 });
-            return null;
+            return MediaFetchResult.RateLimited();
         }
 
         var config = _plugin.Configuration ?? new PluginConfiguration();
@@ -93,7 +93,7 @@ public class TheIntroDbClient
 
         if (!hasTmdb && !hasTvdb && !hasImdb)
         {
-            return null;
+            return MediaFetchResult.NotFound();
         }
 
         var queryParams = new List<string>(4);
@@ -115,7 +115,7 @@ public class TheIntroDbClient
             if (!season.HasValue || !episode.HasValue)
             {
                 _logger.LogWarning("Skipping TV show request: missing season ({Season}) or episode ({Episode}) for tmdbId={TmdbId}, tvdbId={TvdbId}, imdbId={ImdbId}", season, episode, tmdbIdValue, tvdbIdValue, imdbId ?? "(none)");
-                return null;
+                return MediaFetchResult.NotFound();
             }
 
             queryParams.Add($"season={season}");
@@ -168,7 +168,7 @@ public class TheIntroDbClient
                         ["id_source"] = idSource,
                         ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(config.ApiKey) ? 1 : 0
                     });
-                return null;
+                return MediaFetchResult.RateLimited();
             }
 
             if (!response.IsSuccessStatusCode)
@@ -187,7 +187,13 @@ public class TheIntroDbClient
                         ["id_source"] = idSource,
                         ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(config.ApiKey) ? 1 : 0
                     });
-                return null;
+
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    return MediaFetchResult.NotFound();
+                }
+
+                return MediaFetchResult.Error();
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -213,7 +219,7 @@ public class TheIntroDbClient
                     ["credits_count"] = result?.Credits?.Count ?? 0,
                     ["preview_count"] = result?.Preview?.Count ?? 0
                 });
-            return result;
+            return MediaFetchResult.Success(result);
         }
         catch (Exception ex)
         {
@@ -229,7 +235,7 @@ public class TheIntroDbClient
                     ["id_source"] = idSource,
                     ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(config.ApiKey) ? 1 : 0
                 });
-            return null;
+            return MediaFetchResult.Error();
         }
     }
 
