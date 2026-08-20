@@ -1,4 +1,5 @@
 using System;
+using System.Net.Http;
 using System.Reflection;
 using TheIntroDB.Api;
 using Xunit;
@@ -62,5 +63,27 @@ public class RateLimitSafetyTests
         Assert.False(success.IsRateLimited);
         Assert.False(success.IsNotFound);
         Assert.NotNull(success.Response);
+    }
+
+    [Fact]
+    public void ProviderRetryAfterIsClampedBeforeRetrying()
+    {
+        var method = typeof(TheIntroDbClient).GetMethod(
+            "GetRetryAfterSeconds",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.NotNull(method);
+
+        using var response = new HttpResponseMessage();
+
+        // A huge reset value must be clamped to the 5-minute ceiling, never
+        // disabling lookups for days.
+        response.Headers.TryAddWithoutValidation("X-UsageLimit-Reset", "999999");
+        Assert.Equal(300, Assert.IsType<int>(method.Invoke(null, new[] { response.Headers })));
+
+        // A sub-second delta must be raised to at least 1 second, otherwise
+        // the same expired timestamp keeps being treated as rate-limited.
+        response.Headers.Clear();
+        response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(DateTimeOffset.UtcNow.AddMilliseconds(500));
+        Assert.Equal(1, Assert.IsType<int>(method.Invoke(null, new[] { response.Headers })));
     }
 }
