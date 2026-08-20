@@ -19,6 +19,7 @@ public class TheIntroDbClient
     private const int MaxRequestsPerWindow = 25;
     private static readonly TimeSpan RateLimitWindow = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan MinDelayBetweenRequests = TimeSpan.FromMilliseconds(RateLimitWindow.TotalMilliseconds / MaxRequestsPerWindow);
+    private static readonly TimeSpan MaxRateLimitDelay = TimeSpan.FromMinutes(5);
 
     private static readonly SemaphoreSlim RateLimitLock = new(1, 1);
     private static DateTime _lastRequestUtc = DateTime.MinValue;
@@ -221,6 +222,12 @@ public class TheIntroDbClient
                 });
             return MediaFetchResult.Success(result);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Cancellation is cooperative — propagate it rather than masking
+            // it as a transient API error.
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "TheIntroDB API request failed for {Uri}", requestUri);
@@ -243,21 +250,31 @@ public class TheIntroDbClient
     {
         if (headers.TryGetValues("X-UsageLimit-Reset", out var usageResetValues) && int.TryParse(usageResetValues.FirstOrDefault(), out var usageResetSeconds))
         {
-            return usageResetSeconds;
+            return ClampRetryAfterSeconds(usageResetSeconds);
         }
 
         if (headers.TryGetValues("X-RateLimit-Reset", out var rateResetValues) && int.TryParse(rateResetValues.FirstOrDefault(), out var rateResetSeconds))
         {
-            return rateResetSeconds;
+            return ClampRetryAfterSeconds(rateResetSeconds);
         }
 
         if (headers.RetryAfter?.Delta.HasValue ?? false)
         {
-            return (int)headers.RetryAfter.Delta.Value.TotalSeconds;
+            return ClampRetryAfterSeconds((int)headers.RetryAfter.Delta.Value.TotalSeconds);
+        }
+
+        if (headers.RetryAfter?.Date.HasValue ?? false)
+        {
+            return ClampRetryAfterSeconds((int)Math.Ceiling((headers.RetryAfter.Date.Value.UtcDateTime - DateTime.UtcNow).TotalSeconds));
         }
 
         // Default to a 5-minute wait if no header is present
-        return 300;
+        return (int)MaxRateLimitDelay.TotalSeconds;
+    }
+
+    private static int ClampRetryAfterSeconds(int seconds)
+    {
+        return Math.Max(1, Math.Min(seconds, (int)MaxRateLimitDelay.TotalSeconds));
     }
 
     /// <summary>
