@@ -104,12 +104,17 @@ jobs:
           token: ${{ secrets.GH_TOKEN }}
 
       - name: Update plugin manifest
+        env:
+          # Pass the release body via env instead of interpolating it into the
+          # shell script: backticks / $ / quotes in release notes would otherwise
+          # be evaluated by bash (command substitution) and abort the step.
+          CHANGELOG_RAW: ${{ github.event.release.body || 'See release notes' }}
         run: |
           VERSION="${{ needs.build.outputs.version }}"
           TAG="${{ github.event.release.tag_name }}"
           CHECKSUM="${{ steps.manifest.outputs.checksum }}"
           SOURCE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/theintrodb_${VERSION}.zip"
-          CHANGELOG="${{ github.event.release.body || 'See release notes' }}"
+          CHANGELOG="${CHANGELOG_RAW}"
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
           # Escape changelog for JSON (replace newlines with \n)
