@@ -33,6 +33,6 @@ public class SegmentTimestamp
             return EndMs.HasValue && EndMs.Value > (StartMs ?? 0);
         }
 
-        return StartMs.HasValue;
+        return StartMs.HasValue || EndMs.HasValue;
     }
 }

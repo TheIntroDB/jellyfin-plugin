@@ -33,6 +33,7 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService, IDisposa
     private readonly CancellationTokenSource _cts = new();
     private readonly ConcurrentDictionary<long, Task> _pendingTasks = new();
     private static readonly char[] CommaSeparator = { ',' };
+    private int _ctsDisposed;
 
     public TheIntroDbUsageReportingService(
         ISessionManager sessionManager,
@@ -79,11 +80,27 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService, IDisposa
             // Swallow task exceptions during shutdown — they were already logged
         }
 
-        _cts.Dispose();
+        DisposeCts();
     }
 
     public void Dispose()
     {
+        DisposeCts();
+    }
+
+    /// <summary>
+    /// Cancels and disposes the <see cref="CancellationTokenSource"/> exactly once.
+    /// The host calls <see cref="StopAsync"/> and then disposes the service, so both
+    /// paths run during shutdown — without a guard the second call would throw
+    /// <see cref="ObjectDisposedException"/>.
+    /// </summary>
+    private void DisposeCts()
+    {
+        if (Interlocked.Exchange(ref _ctsDisposed, 1) != 0)
+        {
+            return;
+        }
+
         _cts.Cancel();
         _cts.Dispose();
     }

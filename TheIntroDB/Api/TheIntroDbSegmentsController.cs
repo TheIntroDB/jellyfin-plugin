@@ -5,6 +5,7 @@ using System.Linq;
 using System.Net.Mime;
 using System.Threading;
 using System.Threading.Tasks;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaSegments;
 using MediaBrowser.Model.Configuration;
@@ -22,6 +23,13 @@ namespace TheIntroDB.Api;
 [Produces(MediaTypeNames.Application.Json)]
 public class TheIntroDbSegmentsController : ControllerBase
 {
+    /// <summary>
+    /// Display name of this plugin's media segment provider. Must match
+    /// <see cref="Plugin.Name"/> (and therefore <c>TheIntroDbSegmentProvider.Name</c>),
+    /// because Jellyfin keys stored segments by a provider id derived from this name.
+    /// </summary>
+    private const string TheIntroDbProviderName = "TheIntroDB";
+
     private readonly ILibraryManager _libraryManager;
     private readonly IMediaSegmentManager _mediaSegmentManager;
     private readonly ILogger<TheIntroDbSegmentsController> _logger;
@@ -75,49 +83,90 @@ public class TheIntroDbSegmentsController : ControllerBase
 
         foreach (var itemId in guids)
         {
-            var segmentsBefore = 0;
+            cancellationToken.ThrowIfCancellationRequested();
+
             var itemName = "Unknown";
+            var segmentsRemoved = 0;
 
             try
             {
                 var item = _libraryManager.GetItemById(itemId);
-                if (item is not null)
+                if (item is null)
+                {
+                    _logger.LogWarning("TheIntroDB could not resolve item {ItemId}; skipping segment removal", itemId);
+                }
+                else
                 {
                     itemName = item.Name ?? "Unknown";
-
-                    var existingSegments = await _mediaSegmentManager
-                        .GetSegmentsAsync(item, null, new LibraryOptions(), false)
-                        .ConfigureAwait(false);
-
-                    segmentsBefore = existingSegments.Count();
+                    segmentsRemoved = await RemoveTheIntroDbSegmentsAsync(item).ConfigureAwait(false);
                 }
-            }
-            catch
-            {
-            }
-
-            try
-            {
-                await _mediaSegmentManager
-                    .DeleteSegmentsAsync(itemId, cancellationToken)
-                    .ConfigureAwait(false);
-
-                _logger.LogInformation("TheIntroDB deleted segments for {Name} ({Id})", itemName, itemId);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "TheIntroDB failed to delete segments for {Name} ({Id})", itemName, itemId);
             }
 
-            response.TotalSegmentsRemoved += segmentsBefore;
+            response.TotalSegmentsRemoved += segmentsRemoved;
             response.Results.Add(new ItemResult
             {
                 Id = itemId.ToString(),
                 Name = itemName,
-                SegmentsRemoved = segmentsBefore
+                SegmentsRemoved = segmentsRemoved
             });
         }
 
         return Ok(response);
     }
+
+    /// <summary>
+    /// Deletes only the media segments owned by this plugin for the given item, leaving
+    /// segments produced by other providers (e.g. Intro Skipper) completely untouched.
+    /// </summary>
+    /// <param name="item">The library item whose TheIntroDB segments should be removed.</param>
+    /// <returns>The number of TheIntroDB segments removed.</returns>
+    private async Task<int> RemoveTheIntroDbSegmentsAsync(BaseItem item)
+    {
+        var supportedProviders = _mediaSegmentManager.GetSupportedProviders(item).ToArray();
+
+        // Only segments owned by this plugin are ever touched. If this plugin's provider is
+        // not registered for the item (non-video item, or provider disabled), there is nothing
+        // to remove — and we must NOT fall back to deleting all segments, which would wipe
+        // segments produced by other providers (e.g. Intro Skipper).
+        if (!supportedProviders.Any(provider => IsTheIntroDbProvider(provider.Name)))
+        {
+            return 0;
+        }
+
+        // GetSegmentsAsync with filterByProvider: true returns only segments whose provider is
+        // NOT in DisabledMediaSegmentProviders. Disable every other provider so that only this
+        // plugin's segments are returned. Jellyfin 10.11 matches disabled entries against the
+        // hashed provider id, while newer servers match the provider name — include both forms.
+        var tidbOnlyOptions = new LibraryOptions
+        {
+            DisabledMediaSegmentProviders = supportedProviders
+                .Where(provider => !IsTheIntroDbProvider(provider.Name))
+                .SelectMany(provider => new[] { provider.Id, provider.Name })
+                .ToArray()
+        };
+
+        var tidbSegments = (await _mediaSegmentManager
+            .GetSegmentsAsync(item, null, tidbOnlyOptions, filterByProvider: true)
+            .ConfigureAwait(false)).ToArray();
+
+        foreach (var segment in tidbSegments)
+        {
+            await _mediaSegmentManager.DeleteSegmentAsync(segment.Id).ConfigureAwait(false);
+        }
+
+        _logger.LogInformation(
+            "TheIntroDB removed {Count} of its own segment(s) for {Name} ({Id}); other providers' segments left intact",
+            tidbSegments.Length,
+            item.Name ?? "Unknown",
+            item.Id);
+
+        return tidbSegments.Length;
+    }
+
+    private static bool IsTheIntroDbProvider(string providerName)
+        => string.Equals(providerName, TheIntroDbProviderName, StringComparison.OrdinalIgnoreCase);
 }

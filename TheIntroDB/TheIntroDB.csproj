@@ -15,16 +15,20 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Jellyfin.Controller" Version="12.0.0-rc3">
+    <PackageReference Include="Jellyfin.Controller" Version="12.0.0">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
-    <PackageReference Include="Jellyfin.Model" Version="12.0.0-rc3">
+    <PackageReference Include="Jellyfin.Model" Version="12.0.0">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
-    <PackageReference Include="Jellyfin.Database.Implementations" Version="12.0.0-rc3">
+    <PackageReference Include="Jellyfin.Database.Implementations" Version="12.0.0">
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="TheIntroDB.Tests" />
   </ItemGroup>
 
   <ItemGroup>

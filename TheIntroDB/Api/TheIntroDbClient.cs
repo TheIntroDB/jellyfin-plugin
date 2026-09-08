@@ -16,9 +16,10 @@ namespace TheIntroDB.Api;
 /// </summary>
 public class TheIntroDbClient
 {
-    private const int MaxRequestsPerWindow = 30;
+    private const int MaxRequestsPerWindow = 25;
     private static readonly TimeSpan RateLimitWindow = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan MinDelayBetweenRequests = TimeSpan.FromMilliseconds(RateLimitWindow.TotalMilliseconds / MaxRequestsPerWindow);
+    private static readonly TimeSpan MaxRateLimitDelay = TimeSpan.FromMinutes(5);
 
     private static readonly SemaphoreSlim RateLimitLock = new(1, 1);
     private static DateTime _lastRequestUtc = DateTime.MinValue;
@@ -51,8 +52,8 @@ public class TheIntroDbClient
     /// <param name="episode">Episode number (required for TV).</param>
     /// <param name="durationMs">Optional total video duration (milliseconds). Recommended for best matching release version.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Media response or null if not found or error.</returns>
-    public async Task<MediaResponse?> GetMediaAsync(
+    /// <returns>Media fetch result distinguishing rate limits, errors and not-found.</returns>
+    public async Task<MediaFetchResult> GetMediaAsync(
         int? tmdbId,
         int? tvdbId,
         string? imdbId,
@@ -85,7 +86,7 @@ public class TheIntroDbClient
                     ["id_source"] = idSource,
                     ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(_plugin.Configuration?.ApiKey) ? 1 : 0
                 });
-            return null;
+            return MediaFetchResult.RateLimited();
         }
 
         var config = _plugin.Configuration ?? new PluginConfiguration();
@@ -93,7 +94,7 @@ public class TheIntroDbClient
 
         if (!hasTmdb && !hasTvdb && !hasImdb)
         {
-            return null;
+            return MediaFetchResult.NotFound();
         }
 
         var queryParams = new List<string>(4);
@@ -115,7 +116,7 @@ public class TheIntroDbClient
             if (!season.HasValue || !episode.HasValue)
             {
                 _logger.LogWarning("Skipping TV show request: missing season ({Season}) or episode ({Episode}) for tmdbId={TmdbId}, tvdbId={TvdbId}, imdbId={ImdbId}", season, episode, tmdbIdValue, tvdbIdValue, imdbId ?? "(none)");
-                return null;
+                return MediaFetchResult.NotFound();
             }
 
             queryParams.Add($"season={season}");
@@ -168,7 +169,7 @@ public class TheIntroDbClient
                         ["id_source"] = idSource,
                         ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(config.ApiKey) ? 1 : 0
                     });
-                return null;
+                return MediaFetchResult.RateLimited();
             }
 
             if (!response.IsSuccessStatusCode)
@@ -187,7 +188,13 @@ public class TheIntroDbClient
                         ["id_source"] = idSource,
                         ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(config.ApiKey) ? 1 : 0
                     });
-                return null;
+
+                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    return MediaFetchResult.NotFound();
+                }
+
+                return MediaFetchResult.Error();
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -213,7 +220,13 @@ public class TheIntroDbClient
                     ["credits_count"] = result?.Credits?.Count ?? 0,
                     ["preview_count"] = result?.Preview?.Count ?? 0
                 });
-            return result;
+            return MediaFetchResult.Success(result);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Cancellation is cooperative — propagate it rather than masking
+            // it as a transient API error.
+            throw;
         }
         catch (Exception ex)
         {
@@ -229,7 +242,7 @@ public class TheIntroDbClient
                     ["id_source"] = idSource,
                     ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(config.ApiKey) ? 1 : 0
                 });
-            return null;
+            return MediaFetchResult.Error();
         }
     }
 
@@ -237,21 +250,31 @@ public class TheIntroDbClient
     {
         if (headers.TryGetValues("X-UsageLimit-Reset", out var usageResetValues) && int.TryParse(usageResetValues.FirstOrDefault(), out var usageResetSeconds))
         {
-            return usageResetSeconds;
+            return ClampRetryAfterSeconds(usageResetSeconds);
         }
 
         if (headers.TryGetValues("X-RateLimit-Reset", out var rateResetValues) && int.TryParse(rateResetValues.FirstOrDefault(), out var rateResetSeconds))
         {
-            return rateResetSeconds;
+            return ClampRetryAfterSeconds(rateResetSeconds);
         }
 
         if (headers.RetryAfter?.Delta.HasValue ?? false)
         {
-            return (int)headers.RetryAfter.Delta.Value.TotalSeconds;
+            return ClampRetryAfterSeconds((int)headers.RetryAfter.Delta.Value.TotalSeconds);
+        }
+
+        if (headers.RetryAfter?.Date.HasValue ?? false)
+        {
+            return ClampRetryAfterSeconds((int)Math.Ceiling((headers.RetryAfter.Date.Value.UtcDateTime - DateTime.UtcNow).TotalSeconds));
         }
 
         // Default to a 5-minute wait if no header is present
-        return 300;
+        return (int)MaxRateLimitDelay.TotalSeconds;
+    }
+
+    private static int ClampRetryAfterSeconds(int seconds)
+    {
+        return Math.Max(1, Math.Min(seconds, (int)MaxRateLimitDelay.TotalSeconds));
     }
 
     /// <summary>
