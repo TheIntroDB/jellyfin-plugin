@@ -20,6 +20,12 @@
                         <div id="ApiKeyValidationStatus" class="fieldDescription" style="display: none; margin-top: 0.75em; align-items: center; gap: 0.5em;"></div>
                     </div>
                     <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused">Not-found cache</label>
+                        <button id="ClearNotFoundCache" is="emby-button" type="button" class="raised emby-button">Clear not-found cache</button>
+                        <div id="NotFoundCacheStatus" class="fieldDescription" style="margin-top: 0.75em;"></div>
+                        <div class="fieldDescription">Items TheIntroDB has no data for are skipped for 14 days to save API requests. If you just submitted segments on theintrodb.org, clear the cache and run the Media segment scan to pull them into your library.</div>
+                    </div>
+                    <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused">Only scan selected shows or libraries (optional)</label>
                         <div id="SelectedShowSummary" class="fieldDescription" style="margin-bottom: 1em;">All media</div>
                         <button id="OpenShowPicker" is="emby-button" type="button" class="raised emby-button">Browse libraries and shows</button>
@@ -1248,6 +1254,19 @@
                 document.querySelector('#OpenShowPicker')
                     .addEventListener('click', function () {
                         openShowPicker();
+                    });
+
+                document.querySelector('#ClearNotFoundCache')
+                    .addEventListener('click', function () {
+                        var statusElement = document.querySelector('#NotFoundCacheStatus');
+                        statusElement.textContent = 'Clearing...';
+                        postJson(ApiClient.getUrl('Plugins/TheIntroDB/NotFoundCache/Clear'), {})
+                            .then(function (response) {
+                                statusElement.textContent = 'Cleared ' + response.ClearedEntries + ' cached not-found item(s). Run the Media segment scan to re-check your library.';
+                            })
+                            .catch(function () {
+                                statusElement.textContent = 'Failed to clear the not-found cache.';
+                            });
                     });
 
                 document.querySelector('#CloseShowPicker')

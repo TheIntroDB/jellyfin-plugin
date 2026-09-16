@@ -71,6 +71,31 @@ public class TheIntroDbNotFoundCacheTests
         }
     }
 
+    [Fact]
+    public void ClearRemovesEntriesAndDeletesFile()
+    {
+        var path = GetTempCachePath();
+        try
+        {
+            var cache = new TheIntroDbNotFoundCache(path);
+            cache.RememberNotFound("ep:tmdb:1396:1:1");
+            cache.RememberNotFound("mov:tmdb:603");
+            cache.Save();
+
+            Assert.Equal(2, cache.Clear());
+            Assert.False(cache.TryGetHit("ep:tmdb:1396:1:1"));
+            Assert.False(cache.TryGetHit("mov:tmdb:603"));
+            Assert.False(File.Exists(path));
+
+            var reloaded = new TheIntroDbNotFoundCache(path);
+            Assert.False(reloaded.TryGetHit("ep:tmdb:1396:1:1"));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     private static string GetTempCachePath()
     {
         return Path.Combine(Path.GetTempPath(), "tidb-notfound-" + Path.GetRandomFileName() + ".json");
