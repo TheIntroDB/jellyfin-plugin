@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
@@ -28,6 +29,17 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
     private readonly ILibraryManager _libraryManager;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<TheIntroDbSegmentProvider> _logger;
+
+    /// <summary>
+    /// Remembers items the API has no data for so they are not re-requested on
+    /// every scan. Shared across provider instances; persists to the plugin data folder.
+    /// </summary>
+    private static readonly Lazy<TheIntroDbNotFoundCache> NotFoundCache = new(static () =>
+    {
+        var dataFolderPath = Plugin.Instance?.DataFolderPath;
+        return new TheIntroDbNotFoundCache(
+            dataFolderPath is null ? null : Path.Combine(dataFolderPath, "notfound-cache.json"));
+    });
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TheIntroDbSegmentProvider"/> class.
@@ -141,13 +153,13 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         if ((!tmdbId.HasValue || tmdbId.Value <= 0) && (!tvdbId.HasValue || tvdbId.Value <= 0) && string.IsNullOrWhiteSpace(imdbId))
         {
             _logger.LogWarning("Early exit: no TmdbId, TvdbId, or ImdbId for {Name}", item.Name);
-            return Array.Empty<MediaSegmentDto>();
+            return RememberNotFoundAndReturnEmpty(request);
         }
 
         if (!isMovie && (!season.HasValue || !episode.HasValue))
         {
             _logger.LogWarning("Early exit: TV episode missing season/episode for {Name}", item.Name);
-            return Array.Empty<MediaSegmentDto>();
+            return RememberNotFoundAndReturnEmpty(request);
         }
 
         if (config.IgnoreMediaWithExistingSegments)
@@ -175,6 +187,13 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             }
         }
 
+        var cacheKey = BuildNotFoundKey(isMovie, tmdbId, tvdbId, imdbId, season, episode);
+        if (NotFoundCache.Value.TryGetHit(cacheKey))
+        {
+            _logger.LogDebug("Skipping {Name}: known not found in TheIntroDB (cached 404)", item.Name);
+            return Array.Empty<MediaSegmentDto>();
+        }
+
         _logger.LogInformation("Fetching from TheIntroDB API: tmdbId={TmdbId}, tvdbId={TvdbId}, imdbId={ImdbId}, isMovie={IsMovie}, season={Season}, episode={Episode}", tmdbId, tvdbId, imdbId, isMovie, season, episode);
         var httpClient = _httpClientFactory.CreateClient();
         var client = new TheIntroDbClient(httpClient, Plugin.Instance, _logger);
@@ -197,6 +216,11 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         if (result.IsNotFound || result.Response is null)
         {
             _logger.LogInformation("TheIntroDB API returned no data for {Name}", item.Name);
+            if (result.IsNotFound)
+            {
+                NotFoundCache.Value.RememberNotFound(cacheKey);
+            }
+
             return Array.Empty<MediaSegmentDto>();
         }
 
@@ -275,6 +299,35 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
     private static List<MediaSegmentDto> GetExistingSegments(MediaSegmentGenerationRequest request)
     {
         return (request.ExistingSegments ?? Array.Empty<MediaSegmentDto>()).ToList();
+    }
+
+    private static MediaSegmentDto[] RememberNotFoundAndReturnEmpty(MediaSegmentGenerationRequest request)
+    {
+        // Items without any provider id (or without season/episode) are
+        // deterministic no-data lookups: remember them so every scan stops
+        // re-checking them. The TTL re-checks in case metadata is added later.
+        NotFoundCache.Value.RememberNotFound($"item:{request.ItemId:N}");
+        return Array.Empty<MediaSegmentDto>();
+    }
+
+    private static string BuildNotFoundKey(bool isMovie, int? tmdbId, int? tvdbId, string? imdbId, int? season, int? episode)
+    {
+        var type = isMovie ? "movie" : "episode";
+        string idPart;
+        if (tmdbId is > 0)
+        {
+            idPart = $"tmdb:{tmdbId}";
+        }
+        else if (tvdbId is > 0)
+        {
+            idPart = $"tvdb:{tvdbId}";
+        }
+        else
+        {
+            idPart = $"imdb:{imdbId}";
+        }
+
+        return isMovie ? $"{type}:{idPart}" : $"{type}:{idPart}:{season}:{episode}";
     }
 
     private static HashSet<string> GetSelectedShowIds(PluginConfiguration config)
