@@ -304,6 +304,14 @@ public class TheIntroDbClient
             && int.TryParse(usageResetValues.FirstOrDefault(), out var usageResetSeconds)
             && usageResetSeconds > 0)
         {
+            // A usage reset beyond the rate-limit ceiling is unambiguous even
+            // when the response body was stripped by an intermediary.
+            if (usageResetSeconds > RateResetClampSeconds)
+            {
+                isUsageLimit = true;
+                maxClamp = UsageResetClampSeconds;
+            }
+
             return ClampRetryAfterSeconds(usageResetSeconds, maxClamp);
         }
 
