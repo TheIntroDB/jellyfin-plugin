@@ -1,5 +1,6 @@
 using System;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Reflection;
 using TheIntroDB.Api;
 using Xunit;
@@ -66,24 +67,58 @@ public class RateLimitSafetyTests
     }
 
     [Fact]
-    public void ProviderRetryAfterIsClampedBeforeRetrying()
+    public void UsageLimitResetIsTrustedUpToDailyCeiling()
     {
-        var method = typeof(TheIntroDbClient).GetMethod(
-            "GetRetryAfterSeconds",
-            BindingFlags.Static | BindingFlags.NonPublic);
-        Assert.NotNull(method);
-
         using var response = new HttpResponseMessage();
 
-        // A huge reset value must be clamped to the 5-minute ceiling, never
-        // disabling lookups for days.
-        response.Headers.TryAddWithoutValidation("X-UsageLimit-Reset", "999999");
-        Assert.Equal(300, Assert.IsType<int>(method.Invoke(null, new[] { response.Headers })));
+        // A usage-limit 429 carries seconds until UTC midnight. Clamping this
+        // to five minutes would turn an exhausted daily budget into a probe
+        // loop (the reported 429-every-five-minutes behaviour).
+        response.Headers.TryAddWithoutValidation("X-UsageLimit-Reset", "49000");
+        const string usageBody = "{\"error\":\"Usage limit exceeded\",\"retry_after\":\"13.6 hours\",\"code\":\"usage_limit_exceeded\"}";
+        Assert.Equal(49000, TheIntroDbClient.GetRetryAfterSeconds(response.Headers, usageBody));
 
-        // A sub-second delta must be raised to at least 1 second, otherwise
-        // the same expired timestamp keeps being treated as rate-limited.
+        // Sanity bound: never wait longer than a day for the daily bucket.
         response.Headers.Clear();
-        response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(DateTimeOffset.UtcNow.AddMilliseconds(500));
-        Assert.Equal(1, Assert.IsType<int>(method.Invoke(null, new[] { response.Headers })));
+        response.Headers.TryAddWithoutValidation("X-UsageLimit-Reset", "999999");
+        Assert.Equal(86400, TheIntroDbClient.GetRetryAfterSeconds(response.Headers, usageBody));
+    }
+
+    [Fact]
+    public void RateLimitResetIsClampedToFiveMinutes()
+    {
+        using var response = new HttpResponseMessage();
+
+        // A broken/huge rate-limit reset must never disable lookups for days.
+        response.Headers.TryAddWithoutValidation("X-RateLimit-Reset", "999999");
+        Assert.Equal(300, TheIntroDbClient.GetRetryAfterSeconds(response.Headers, null));
+    }
+
+    [Fact]
+    public void RetryAfterDeltaIsUsedForRateLimit429()
+    {
+        using var response = new HttpResponseMessage();
+
+        // Fiber's limiter answers rate-limit 429s with Retry-After only.
+        response.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromSeconds(10));
+        Assert.Equal(10, TheIntroDbClient.GetRetryAfterSeconds(response.Headers, null));
+    }
+
+    [Fact]
+    public void MissingResetHeadersFallBackToFiveMinutes()
+    {
+        using var response = new HttpResponseMessage();
+        Assert.Equal(300, TheIntroDbClient.GetRetryAfterSeconds(response.Headers, null));
+    }
+
+    [Fact]
+    public void ConsecutiveRateLimit429sBackOffMultiplicatively()
+    {
+        Assert.Equal(10, TheIntroDbClient.ApplyConsecutiveBackOff(10, 1));
+        Assert.Equal(20, TheIntroDbClient.ApplyConsecutiveBackOff(10, 2));
+        Assert.Equal(30, TheIntroDbClient.ApplyConsecutiveBackOff(10, 3));
+        Assert.Equal(80, TheIntroDbClient.ApplyConsecutiveBackOff(10, 8));
+        Assert.Equal(80, TheIntroDbClient.ApplyConsecutiveBackOff(10, 20));
+        Assert.Equal(300, TheIntroDbClient.ApplyConsecutiveBackOff(300, 2));
     }
 }
