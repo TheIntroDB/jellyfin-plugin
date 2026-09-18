@@ -3,6 +3,18 @@
 <head>
     <meta charset="utf-8">
     <title>TheIntroDB</title>
+    <style>
+        #TheIntroDbConfigPage .verticalSection {
+            margin-top: 2em;
+        }
+        #TheIntroDbConfigPage .verticalSection h3.sectionTitle {
+            font-size: 1.15em;
+            font-weight: 600;
+            margin-bottom: 1em;
+            padding-bottom: 0.4em;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
 </head>
 <body>
     <div id="TheIntroDbConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
@@ -13,76 +25,91 @@
                         <h2 class="sectionTitle">TheIntroDB</h2>
                     </div>
                     <p class="fieldDescription">Segment data (intro, recap, credits, preview) is fetched from <a href="https://theintrodb.org" target="_blank" rel="noopener noreferrer">TheIntroDB API</a> using each item's TMDB or IMDB ID. Segments are <strong>not</strong> loaded when you press play—run <strong>Dashboard → Scheduled Tasks → Media segment scan</strong> to populate them. Items need TMDB/IMDB IDs (e.g. from metadata) for the plugin to find segments.</p>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="ApiKey">API key (optional)</label>
-                        <input id="ApiKey" name="ApiKey" type="password" is="emby-input" autocomplete="off" />
-                        <div class="fieldDescription">Optional Bearer token; when set, your pending and accepted submissions are weighted higher in results.</div>
-                        <div id="ApiKeyValidationStatus" class="fieldDescription" style="display: none; margin-top: 0.75em; align-items: center; gap: 0.5em;"></div>
-                    </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused">Not-found cache</label>
-                        <button id="ClearNotFoundCache" is="emby-button" type="button" class="raised emby-button">Clear not-found cache</button>
-                        <div id="NotFoundCacheStatus" class="fieldDescription" style="margin-top: 0.75em;"></div>
-                        <div class="fieldDescription">Items TheIntroDB has no data for are skipped for 14 days to save API requests. If you just submitted segments on theintrodb.org, clear the cache and run the Media segment scan to pull them into your library.</div>
-                    </div>
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused">Only scan selected shows or libraries (optional)</label>
-                        <div id="SelectedShowSummary" class="fieldDescription" style="margin-bottom: 1em;">All media</div>
-                        <button id="OpenShowPicker" is="emby-button" type="button" class="raised emby-button">Browse libraries and shows</button>
-                        <button id="ClearSelectedShow" is="emby-button" type="button" class="raised emby-button" style="margin-left: 0.5em;">Clear selection</button>
-                        <div class="fieldDescription">Whitelisting a library scans all movies and episodes inside it. Selecting individual shows only scans those Jellyfin series. Any media outside the selected libraries or shows is left unchanged.</div>
-                    </div>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="EnableIntro" name="EnableIntro" type="checkbox" is="emby-checkbox" />
-                            <span>Provide intro segments</span>
-                        </label>
-                        <div class="fieldDescription">Include intro segments from TheIntroDB in Jellyfin media segments.</div>
-                    </div>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="EnableRecap" name="EnableRecap" type="checkbox" is="emby-checkbox" />
-                            <span>Provide recap segments</span>
-                        </label>
-                        <div class="fieldDescription">Include recap segments from TheIntroDB.</div>
-                    </div>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="EnableCredits" name="EnableCredits" type="checkbox" is="emby-checkbox" />
-                            <span>Provide credits (outro) segments</span>
-                        </label>
-                        <div class="fieldDescription">Include credits/outro segments from TheIntroDB.</div>
-                    </div>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="EnablePreview" name="EnablePreview" type="checkbox" is="emby-checkbox" />
-                            <span>Provide preview segments</span>
-                        </label>
-                        <div class="fieldDescription">Include preview segments from TheIntroDB.</div>
-                    </div>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="IgnoreMediaWithExistingSegments" name="IgnoreMediaWithExistingSegments" type="checkbox" is="emby-checkbox" />
-                            <span>Ignore media that already has segments</span>
-                        </label>
-                        <div class="fieldDescription">When enabled, items that already have segments are skipped to avoid refetching.</div>
-                        <div class="fieldDescription" style="margin-top: 1em;">
-                            To ensure fair use, TheIntroDB API has rate limits. If you have a large library, scanning may be temporarily paused to respect these limits. The process will automatically resume after a cool-down period. Please be patient while your library is scanned.
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Connection</h3>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="ApiKey">API key (optional)</label>
+                            <input id="ApiKey" name="ApiKey" type="password" is="emby-input" autocomplete="off" />
+                            <div class="fieldDescription">Optional Bearer token; when set, your pending and accepted submissions are weighted higher in results.</div>
+                            <div id="ApiKeyValidationStatus" class="fieldDescription" style="display: none; margin-top: 0.75em; align-items: center; gap: 0.5em;"></div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused">Not-found cache</label>
+                            <button id="ClearNotFoundCache" is="emby-button" type="button" class="raised emby-button">Clear not-found cache</button>
+                            <div id="NotFoundCacheStatus" class="fieldDescription" style="margin-top: 0.75em;"></div>
+                            <div class="fieldDescription">Items TheIntroDB has no data for are skipped for 14 days to save API requests. If you just submitted segments on theintrodb.org, clear the cache and run the Media segment scan to pull them into your library.</div>
                         </div>
                     </div>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="EnableOnDemandFetch" name="EnableOnDemandFetch" type="checkbox" is="emby-checkbox" />
-                            <span>Automatically fetch segments on item addition</span>
-                        </label>
-                        <div class="fieldDescription">When enabled, segments will be fetched for newly added items, so long as no segments exist yet.</div>
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Scan scope</h3>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused">Only scan selected shows or libraries (optional)</label>
+                            <div id="SelectedShowSummary" class="fieldDescription" style="margin-bottom: 1em;">All media</div>
+                            <button id="OpenShowPicker" is="emby-button" type="button" class="raised emby-button">Browse libraries and shows</button>
+                            <button id="ClearSelectedShow" is="emby-button" type="button" class="raised emby-button" style="margin-left: 0.5em;">Clear selection</button>
+                            <div class="fieldDescription">Whitelisting a library scans all movies and episodes inside it. Selecting individual shows only scans those Jellyfin series. Any media outside the selected libraries or shows is left unchanged.</div>
+                        </div>
                     </div>
-                    <div class="checkboxContainer checkboxContainer-withDescription">
-                        <label class="emby-checkbox-label">
-                            <input id="EnableAnonymousUsageReporting" name="EnableAnonymousUsageReporting" type="checkbox" is="emby-checkbox" />
-                            <span>Enable anonymous usage reporting</span>
-                        </label>
-                        <div class="fieldDescription">When enabled, anonymous usage metrics may be collected to help improve the plugin.</div>
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Segments</h3>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableIntro" name="EnableIntro" type="checkbox" is="emby-checkbox" />
+                                <span>Provide intro segments</span>
+                            </label>
+                            <div class="fieldDescription">Include intro segments from TheIntroDB in Jellyfin media segments.</div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableRecap" name="EnableRecap" type="checkbox" is="emby-checkbox" />
+                                <span>Provide recap segments</span>
+                            </label>
+                            <div class="fieldDescription">Include recap segments from TheIntroDB.</div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableCredits" name="EnableCredits" type="checkbox" is="emby-checkbox" />
+                                <span>Provide credits (outro) segments</span>
+                            </label>
+                            <div class="fieldDescription">Include credits/outro segments from TheIntroDB.</div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnablePreview" name="EnablePreview" type="checkbox" is="emby-checkbox" />
+                                <span>Provide preview segments</span>
+                            </label>
+                            <div class="fieldDescription">Include preview segments from TheIntroDB.</div>
+                        </div>
+                    </div>
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Scanning behavior</h3>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="IgnoreMediaWithExistingSegments" name="IgnoreMediaWithExistingSegments" type="checkbox" is="emby-checkbox" />
+                                <span>Ignore media that already has segments</span>
+                            </label>
+                            <div class="fieldDescription">When enabled, items that already have segments are skipped to avoid refetching.</div>
+                            <div class="fieldDescription" style="margin-top: 1em;">
+                                To ensure fair use, TheIntroDB API has rate limits. If you have a large library, scanning may be temporarily paused to respect these limits. The process will automatically resume after a cool-down period. Please be patient while your library is scanned.
+                            </div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableOnDemandFetch" name="EnableOnDemandFetch" type="checkbox" is="emby-checkbox" />
+                                <span>Automatically fetch segments on item addition</span>
+                            </label>
+                            <div class="fieldDescription">When enabled, segments will be fetched for newly added items, so long as no segments exist yet.</div>
+                        </div>
+                    </div>
+                    <div class="verticalSection">
+                        <h3 class="sectionTitle">Privacy &amp; logging</h3>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input id="EnableAnonymousUsageReporting" name="EnableAnonymousUsageReporting" type="checkbox" is="emby-checkbox" />
+                                <span>Enable anonymous usage reporting</span>
+                            </label>
+                            <div class="fieldDescription">When enabled, anonymous usage metrics may be collected to help improve the plugin.</div>
+                        </div>
                     </div>
                     <div class="verticalSection">
                         <h3 class="sectionTitle">Remove TheIntroDB Segments</h3>
