@@ -9,7 +9,8 @@
 
 This plugin integrates [TheIntroDB API](https://api.theintrodb.org) with Jellyfin’s **Media Segments** feature. It fetches intro, recap, credits, and preview timestamps by TMDB ID and exposes them as Jellyfin media segments so clients can show skip buttons.
 
-**Requirements:** Jellyfin 10.11.6+. **TMDb metadata is recommended** for best accuracy (IMDb and Tvdb works as a fallback but is less accurate for TV).
+**Requirements:** Jellyfin 12+. **TMDb metadata is recommended** for best accuracy (IMDb and Tvdb works as a fallback but is less accurate for TV).
+([10.11.6+ version](https://github.com/TheIntroDB/jellyfin-plugin/releases/tag/v1.0.7.4)]
 
 **Important:** Segments are **not** fetched when you press play. They are filled when the **Media segment scan** task runs (manually or on its schedule). Until that task has run for your library, skip intro/outro will not appear.
 
