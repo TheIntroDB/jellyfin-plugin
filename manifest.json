@@ -9,6 +9,14 @@
     "category": "General",
     "versions": [
       {
+        "version": "1.1.3.0",
+        "changelog": "Changes made:\r\n- reorganized settings page\r\n\r\n**Full Changelog**: https://github.com/TheIntroDB/jellyfin-plugin/compare/v1.1.2.0...v1.1.3.0\n",
+        "targetAbi": "12.0.0.0",
+        "sourceUrl": "https://github.com/TheIntroDB/jellyfin-plugin/releases/download/v1.1.3.0/theintrodb_1.1.3.0.zip",
+        "checksum": "cda9d7125db91ef0ffd05d10f4456bf3",
+        "timestamp": "2026-09-18T19:00:39Z"
+      },
+      {
         "version": "1.1.2.0",
         "changelog": "fix: stop per-item log spam when the daily API budget is exhausted\r\n\r\n**Full Changelog**: https://github.com/TheIntroDB/jellyfin-plugin/compare/v1.1.1.0...v1.1.2.0\n",
         "targetAbi": "12.0.0.0",
