@@ -57,7 +57,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         MediaSegmentGenerationRequest request,
         CancellationToken cancellationToken)
     {
-        _logger.LogInformation("GetMediaSegments called for ItemId={ItemId}", request?.ItemId);
+        _logger.LogDebug("GetMediaSegments called for ItemId={ItemId}", request?.ItemId);
 
         if (request is null || Plugin.Instance is null)
         {
@@ -116,7 +116,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             tmdbId = GetTmdbId(movie);
             tvdbId = GetTvdbId(movie);
             imdbId = GetImdbId(movie);
-            _logger.LogInformation("Movie: Name={Name}, TmdbId={TmdbId}, TvdbId={TvdbId}, ImdbId={ImdbId}", item.Name, tmdbId, tvdbId, imdbId ?? "(none)");
+            _logger.LogDebug("Movie: Name={Name}, TmdbId={TmdbId}, TvdbId={TvdbId}, ImdbId={ImdbId}", item.Name, tmdbId, tvdbId, imdbId ?? "(none)");
         }
         else if (item is Episode ep)
         {
@@ -125,7 +125,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             imdbId = GetImdbId(ep) ?? GetImdbId(ep.Series);
             season = ep.ParentIndexNumber;
             episode = ep.IndexNumber;
-            _logger.LogInformation("Episode: Name={Name}, Series={Series}, S{Season}E{Episode}, TmdbId={TmdbId}, TvdbId={TvdbId}, ImdbId={ImdbId}", item.Name, ep.SeriesName, season, episode, tmdbId, tvdbId, imdbId ?? "(none)");
+            _logger.LogDebug("Episode: Name={Name}, Series={Series}, S{Season}E{Episode}, TmdbId={TmdbId}, TvdbId={TvdbId}, ImdbId={ImdbId}", item.Name, ep.SeriesName, season, episode, tmdbId, tvdbId, imdbId ?? "(none)");
         }
         else if (item is Video video)
         {
@@ -135,7 +135,17 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             imdbId = GetImdbId(video);
             season = video.ParentIndexNumber;
             episode = video.IndexNumber;
-            _logger.LogInformation("Video: Name={Name}, TmdbId={TmdbId}, TvdbId={TvdbId}, ImdbId={ImdbId}, Season={Season}, Episode={Episode}", item.Name, tmdbId, tvdbId, imdbId ?? "(none)", season, episode);
+            _logger.LogDebug("Video: Name={Name}, TmdbId={TmdbId}, TvdbId={TvdbId}, ImdbId={ImdbId}, Season={Season}, Episode={Episode}", item.Name, tmdbId, tvdbId, imdbId ?? "(none)", season, episode);
+        }
+
+        // Daily usage budget exhausted: the client parks until the bucket rolls
+        // over, so nothing would be sent. Skip before the fetch path — keeping
+        // existing segments — instead of logging a per-item warning for every
+        // item in the scan.
+        var idSource = tmdbId is > 0 ? "tmdb" : tvdbId is > 0 ? "tvdb" : !string.IsNullOrWhiteSpace(imdbId) ? "imdb" : "none";
+        if (TheIntroDbClient.IsRateLimitActive(_logger, Plugin.Instance, isMovie, idSource))
+        {
+            return GetExistingSegments(request);
         }
 
         if ((!tmdbId.HasValue || tmdbId.Value <= 0) && (!tvdbId.HasValue || tvdbId.Value <= 0) && string.IsNullOrWhiteSpace(imdbId))
@@ -194,10 +204,23 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             // Never treat a transient rate limit or error as an empty dataset:
             // returning empty would make Jellyfin delete the segments this
             // plugin already stored for the item.
-            _logger.LogWarning(
-                "TheIntroDB API request was {Status} for {Name}; preserving existing segments",
-                result.IsRateLimited ? "rate limited" : "an error",
-                item.Name);
+            if (result.IsError)
+            {
+                // Genuine failures are rare and item-specific: keep them loud.
+                _logger.LogWarning(
+                    "TheIntroDB API request was an error for {Name}; preserving existing segments",
+                    item.Name);
+            }
+            else
+            {
+                // The client already warns once per back-off period for the
+                // 429; warning per item here would be one line per skipped
+                // library item (the observed 18k-line spam).
+                _logger.LogDebug(
+                    "TheIntroDB API request was rate limited for {Name}; preserving existing segments",
+                    item.Name);
+            }
+
             return GetExistingSegments(request);
         }
 

@@ -83,35 +83,8 @@ public class TheIntroDbClient
         var hasImdb = !string.IsNullOrWhiteSpace(imdbId);
         var idSource = hasTmdb ? "tmdb" : hasTvdb ? "tvdb" : hasImdb ? "imdb" : "none";
 
-        if (DateTime.UtcNow < Plugin.RateLimitExpiryUtc)
+        if (IsRateLimitActive(_logger, _plugin, isMovie, idSource))
         {
-            var expiryUtc = Plugin.RateLimitExpiryUtc;
-            if (expiryUtc != _lastSkipLoggedExpiryUtc)
-            {
-                // One warning per back-off period instead of one per skipped item.
-                _lastSkipLoggedExpiryUtc = expiryUtc;
-                _logger.LogWarning(
-                    "TheIntroDB API rate limit is currently active. Skipping request. The rate limit will reset at {RateLimitExpiryUtc} UTC.",
-                    expiryUtc);
-                Plugin.AnonymousUsageReporter.TrackEvent(
-                    _plugin,
-                    "theintrodb_api_media_fetch",
-                    new Dictionary<string, object>
-                    {
-                        ["host"] = "jellyfin",
-                        ["result"] = "local_ratelimit_active",
-                        ["media_type"] = isMovie ? "movie" : "episode",
-                        ["id_source"] = idSource,
-                        ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(_plugin.Configuration?.ApiKey) ? 1 : 0
-                    });
-            }
-            else
-            {
-                _logger.LogDebug(
-                    "TheIntroDB API rate limit is currently active until {RateLimitExpiryUtc} UTC.",
-                    expiryUtc);
-            }
-
             return MediaFetchResult.RateLimited();
         }
 
@@ -283,6 +256,54 @@ public class TheIntroDbClient
                 });
             return MediaFetchResult.Error();
         }
+    }
+
+    /// <summary>
+    /// Checks the process-wide rate-limit gate. While it is active, emits a
+    /// single warning per back-off period (plus one telemetry event) instead
+    /// of warning per skipped item, then returns true so callers can skip
+    /// requests without per-item log noise.
+    /// </summary>
+    /// <param name="logger">Logger for the deduplicated warning.</param>
+    /// <param name="plugin">Plugin instance for configuration and telemetry.</param>
+    /// <param name="isMovie">True when the skipped item is a movie.</param>
+    /// <param name="idSource">Which provider id the skipped item carries.</param>
+    /// <returns>True when the rate-limit gate is active and the request should be skipped.</returns>
+    internal static bool IsRateLimitActive(ILogger logger, Plugin? plugin, bool isMovie, string idSource)
+    {
+        var expiryUtc = Plugin.RateLimitExpiryUtc;
+        if (DateTime.UtcNow >= expiryUtc)
+        {
+            return false;
+        }
+
+        if (expiryUtc != _lastSkipLoggedExpiryUtc)
+        {
+            // One warning per back-off period instead of one per skipped item.
+            _lastSkipLoggedExpiryUtc = expiryUtc;
+            logger.LogWarning(
+                "TheIntroDB API rate limit is currently active. Skipping request. The rate limit will reset at {RateLimitExpiryUtc} UTC.",
+                expiryUtc);
+            Plugin.AnonymousUsageReporter.TrackEvent(
+                plugin,
+                "theintrodb_api_media_fetch",
+                new Dictionary<string, object>
+                {
+                    ["host"] = "jellyfin",
+                    ["result"] = "local_ratelimit_active",
+                    ["media_type"] = isMovie ? "movie" : "episode",
+                    ["id_source"] = idSource,
+                    ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(plugin?.Configuration?.ApiKey) ? 1 : 0
+                });
+        }
+        else
+        {
+            logger.LogDebug(
+                "TheIntroDB API rate limit is currently active until {RateLimitExpiryUtc} UTC.",
+                expiryUtc);
+        }
+
+        return true;
     }
 
     /// <summary>
