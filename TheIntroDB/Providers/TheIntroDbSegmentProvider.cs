@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
@@ -28,6 +30,9 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
     private readonly ILibraryManager _libraryManager;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<TheIntroDbSegmentProvider> _logger;
+
+    // One warning per skipped series, not per episode of it.
+    private readonly ConcurrentDictionary<Guid, byte> _orderSkipsLogged = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TheIntroDbSegmentProvider"/> class.
@@ -109,6 +114,9 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         bool isMovie = false;
         int? season = null;
         int? episode = null;
+        string? mapping = null;
+        var unsupportedOrder = false;
+        long? tvdbEpisodeId = null;
 
         if (item is Movie movie)
         {
@@ -125,7 +133,19 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             imdbId = GetImdbId(ep) ?? GetImdbId(ep.Series);
             season = ep.ParentIndexNumber;
             episode = ep.IndexNumber;
-            _logger.LogDebug("Episode: Name={Name}, Series={Series}, S{Season}E{Episode}, TmdbId={TmdbId}, TvdbId={TvdbId}, ImdbId={ImdbId}", item.Name, ep.SeriesName, season, episode, tmdbId, tvdbId, imdbId ?? "(none)");
+
+            // Jellyfin numbers an episode in the series' display order — the order the
+            // TVDB plugin fetched the episode under. TVDB's default order is what
+            // TheIntroDB stores, so a series with any other order has to say which one
+            // its numbers are in or the API answers a different episode (issue #31:
+            // Futurama under `alternate`, where S07E01 is default S06E01).
+            mapping = GetDisplayOrder(ep.Series, out unsupportedOrder);
+
+            // The episode's own TVDB id pins one exact record, so it survives any
+            // numbering disagreement. Only sent alongside a TVDB identity.
+            tvdbEpisodeId = GetTvdbEpisodeId(ep);
+
+            _logger.LogDebug("Episode: Name={Name}, Series={Series}, S{Season}E{Episode}, TmdbId={TmdbId}, TvdbId={TvdbId}, ImdbId={ImdbId}, Order={Order}, TvdbEpisodeId={TvdbEpisodeId}", item.Name, ep.SeriesName, season, episode, tmdbId, tvdbId, imdbId ?? "(none)", mapping ?? "default", tvdbEpisodeId);
         }
         else if (item is Video video)
         {
@@ -138,11 +158,24 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             _logger.LogDebug("Video: Name={Name}, TmdbId={TmdbId}, TvdbId={TvdbId}, ImdbId={ImdbId}, Season={Season}, Episode={Episode}", item.Name, tmdbId, tvdbId, imdbId ?? "(none)", season, episode);
         }
 
+        // A non-default display order can only be honoured with a TVDB identity: a
+        // tmdb_id request is always read as TMDB numbering, so answering would look
+        // right and be another episode's data. No segments beats wrong segments. An
+        // order TheIntroDB has no name for (a TMDB episode group's "storyArc", "tv",
+        // ...) cannot be expressed at all, TVDB id or not.
+        if (!isMovie && season.HasValue && episode.HasValue
+            && (unsupportedOrder || (mapping is not null && tvdbId is not > 0)))
+        {
+            var series = (item as Episode)?.Series;
+            LogOrderSkipOnce(series?.Id ?? item.Id, series?.Name ?? item.Name, unsupportedOrder);
+            return GetExistingSegments(request);
+        }
+
         // Daily usage budget exhausted: the client parks until the bucket rolls
         // over, so nothing would be sent. Skip before the fetch path — keeping
         // existing segments — instead of logging a per-item warning for every
         // item in the scan.
-        var idSource = tmdbId is > 0 ? "tmdb" : tvdbId is > 0 ? "tvdb" : !string.IsNullOrWhiteSpace(imdbId) ? "imdb" : "none";
+        var idSource = tvdbId is > 0 ? "tvdb" : tmdbId is > 0 ? "tmdb" : !string.IsNullOrWhiteSpace(imdbId) ? "imdb" : "none";
         if (TheIntroDbClient.IsRateLimitActive(_logger, Plugin.Instance, isMovie, idSource))
         {
             return GetExistingSegments(request);
@@ -185,20 +218,20 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             }
         }
 
-        var cacheKey = BuildNotFoundKey(isMovie, tmdbId, tvdbId, imdbId, season, episode);
+        var cacheKey = BuildNotFoundKey(isMovie, tmdbId, tvdbId, imdbId, season, episode, mapping, tvdbEpisodeId);
         if (TheIntroDbNotFoundCache.Instance.TryGetHit(cacheKey))
         {
             _logger.LogDebug("Skipping {Name}: known not found in TheIntroDB (cached 404)", item.Name);
             return Array.Empty<MediaSegmentDto>();
         }
 
-        _logger.LogInformation("Fetching from TheIntroDB API: tmdbId={TmdbId}, tvdbId={TvdbId}, imdbId={ImdbId}, isMovie={IsMovie}, season={Season}, episode={Episode}", tmdbId, tvdbId, imdbId, isMovie, season, episode);
+        _logger.LogInformation("Fetching from TheIntroDB API: tmdbId={TmdbId}, tvdbId={TvdbId}, imdbId={ImdbId}, isMovie={IsMovie}, season={Season}, episode={Episode}, order={Order}, tvdbEpisodeId={TvdbEpisodeId}", tmdbId, tvdbId, imdbId, isMovie, season, episode, mapping ?? "default", tvdbEpisodeId);
         var httpClient = _httpClientFactory.CreateClient();
         var client = new TheIntroDbClient(httpClient, Plugin.Instance, _logger);
         long? durationMs = item.RunTimeTicks.HasValue && item.RunTimeTicks.Value > 0
             ? item.RunTimeTicks.Value / TimeSpan.TicksPerMillisecond
             : null;
-        var result = await client.GetMediaAsync(tmdbId, tvdbId, imdbId, isMovie, season, episode, durationMs, cancellationToken).ConfigureAwait(false);
+        var result = await client.GetMediaAsync(tmdbId, tvdbId, imdbId, isMovie, season, episode, durationMs, cancellationToken, mapping, tvdbEpisodeId).ConfigureAwait(false);
         if (result.IsRateLimited || result.IsError)
         {
             // Never treat a transient rate limit or error as an empty dataset:
@@ -321,24 +354,146 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         return Array.Empty<MediaSegmentDto>();
     }
 
-    private static string BuildNotFoundKey(bool isMovie, int? tmdbId, int? tvdbId, string? imdbId, int? season, int? episode)
+    internal static string BuildNotFoundKey(bool isMovie, int? tmdbId, int? tvdbId, string? imdbId, int? season, int? episode, string? mapping, long? tvdbEpisodeId)
     {
         var type = isMovie ? "movie" : "episode";
         string idPart;
-        if (tmdbId is > 0)
-        {
-            idPart = $"tmdb:{tmdbId}";
-        }
-        else if (tvdbId is > 0)
+        if (tvdbId is > 0)
         {
             idPart = $"tvdb:{tvdbId}";
+        }
+        else if (tmdbId is > 0)
+        {
+            idPart = $"tmdb:{tmdbId}";
         }
         else
         {
             idPart = $"imdb:{imdbId}";
         }
 
-        return isMovie ? $"{type}:{idPart}" : $"{type}:{idPart}:{season}:{episode}";
+        if (isMovie)
+        {
+            return $"{type}:{idPart}";
+        }
+
+        // The order is part of the address: "default" S6E1 and "alternate" S6E1 are
+        // different episodes, so a miss recorded for one must not answer for the other.
+        // The pinned episode id is part of it too — it outranks the numbers when it is
+        // sent, so a 404 recorded against one id must not suppress a later lookup whose
+        // id has been corrected.
+        var orderPart = string.IsNullOrWhiteSpace(mapping) ? string.Empty : $":{mapping}";
+        var episodeIdPart = tvdbEpisodeId is > 0 ? $":ep{tvdbEpisodeId.Value}" : string.Empty;
+        return $"{type}:{idPart}:{season}:{episode}{orderPart}{episodeIdPart}";
+    }
+
+    /// <summary>
+    /// Reads the series' display order as the TVDB order name to send, or null when
+    /// the series numbers its episodes in the default (aired) order.
+    /// </summary>
+    /// <remarks>
+    /// Jellyfin's <c>Series.DisplayOrder</c> holds the vocabulary of whichever metadata
+    /// provider filled the series. The TVDB plugin uses TVDB's own order names
+    /// (official, dvd, absolute, alternate, altdvd, alttwo, regional), which is what
+    /// this recognizes; "official"/"aired" describe the ordinary order, which is also
+    /// what TheIntroDB stores, so they are reported as no preference and cost no
+    /// conversion. The TMDB provider writes its episode-group names instead
+    /// (originalAirDate, digital, storyArc, production, tv — see
+    /// TmdbSeriesProvider.MapDisplayOrderToTvGroupType), which TVDB carries under no
+    /// such order, so those are reported as unsupported rather than sent for a 400.
+    /// </remarks>
+    /// <param name="series">The series the episode belongs to.</param>
+    /// <param name="unsupported">True when the order cannot be expressed to the API.</param>
+    /// <returns>The order name to send as <c>mapping</c>, or null.</returns>
+    internal static string? GetDisplayOrder(Series? series, out bool unsupported)
+    {
+        unsupported = false;
+        var displayOrder = series?.DisplayOrder;
+        if (string.IsNullOrWhiteSpace(displayOrder))
+        {
+            return null;
+        }
+
+        var key = displayOrder.Trim()
+            .Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace("-", string.Empty, StringComparison.Ordinal)
+            .Replace("_", string.Empty, StringComparison.Ordinal)
+            .ToLowerInvariant();
+
+        switch (key)
+        {
+            case "official":
+            case "officialorder":
+            case "aired":
+            case "airedorder":
+            case "airdate":
+            case "airdateorder":
+            case "default":
+            case "defaultorder":
+                return null;
+            case "dvd":
+            case "altdvd":
+            case "dvdorder":
+                return "dvd";
+            case "absolute":
+            case "absoluteorder":
+            case "abso":
+                return "absolute";
+            case "alternate":
+            case "alternateorder":
+            case "alttwo":
+                return "alternate";
+            case "regional":
+            case "regionalorder":
+                return "regional";
+            default:
+                unsupported = true;
+                return null;
+        }
+    }
+
+    private static long? GetTvdbEpisodeId(BaseItem item)
+    {
+        if (item?.ProviderIds is null)
+        {
+            return null;
+        }
+
+        if (item.ProviderIds.TryGetValue("Tvdb", out var id)
+            && !string.IsNullOrWhiteSpace(id)
+            && long.TryParse(id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            && parsed > 0)
+        {
+            return parsed;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Logs a skipped series once, rather than once per episode, which would be
+    /// hundreds of lines on a large show.
+    /// </summary>
+    /// <param name="seriesId">Jellyfin id of the series being skipped (the episode's id when there is no series).</param>
+    /// <param name="name">Series name, for the log line.</param>
+    /// <param name="unsupportedOrder">True when the series' display order has no TVDB equivalent.</param>
+    private void LogOrderSkipOnce(Guid seriesId, string? name, bool unsupportedOrder)
+    {
+        if (!_orderSkipsLogged.TryAdd(seriesId, 0))
+        {
+            return;
+        }
+
+        if (unsupportedOrder)
+        {
+            _logger.LogWarning(
+                "Skipping {Name}: the series uses a display order TheIntroDB cannot convert (a TMDB episode group's order, such as originalAirDate, digital, storyArc, production or tv). Supported orders are aired, dvd, absolute, alternate and regional.",
+                name);
+            return;
+        }
+
+        _logger.LogWarning(
+            "Skipping {Name}: the series uses a non-default display order, but Jellyfin carries no TVDB id to express it against. Add TVDB metadata to the series so the API can convert the episode numbers.",
+            name);
     }
 
     private static HashSet<string> GetSelectedShowIds(PluginConfiguration config)
