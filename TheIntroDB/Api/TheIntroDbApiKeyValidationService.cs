@@ -12,7 +12,9 @@ namespace TheIntroDB.Api;
 /// </summary>
 public sealed class TheIntroDbApiKeyValidationService
 {
-    private static readonly Uri UserStatsUri = new("https://api.theintrodb.org/v3/user/stats", UriKind.Absolute);
+    // v2 and v3 no longer serve /user/stats (they are frozen at GET /media), so the
+    // key probe has to speak v4 as well.
+    private static readonly Uri UserStatsUri = new(TheIntroDbClient.BaseUrl + "/user/stats", UriKind.Absolute);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly IHttpClientFactory _httpClientFactory;
 

@@ -24,13 +24,13 @@
                     <div class="sectionTitleContainer flex align-items-center">
                         <h2 class="sectionTitle">TheIntroDB</h2>
                     </div>
-                    <p class="fieldDescription">Segment data (intro, recap, credits, preview) is fetched from <a href="https://theintrodb.org" target="_blank" rel="noopener noreferrer">TheIntroDB API</a> using each item's TMDB or IMDB ID. Segments are <strong>not</strong> loaded when you press play—run <strong>Dashboard → Scheduled Tasks → Media segment scan</strong> to populate them. Items need TMDB/IMDB IDs (e.g. from metadata) for the plugin to find segments.</p>
+                    <p class="fieldDescription">Segment data (intro, recap, credits, preview) is fetched from <a href="https://theintrodb.org" target="_blank" rel="noopener noreferrer">TheIntroDB API</a> (v4) using each item's TVDB, TMDB or IMDB ID. Segments are <strong>not</strong> loaded when you press play—run <strong>Dashboard → Scheduled Tasks → Media segment scan</strong> to populate them. Items need one of those IDs (e.g. from metadata) for the plugin to find segments. TVDB is preferred: it is the API's identity, and it is what lets series with a non-default display order (DVD, alternate, absolute, …) resolve to the right episode.</p>
                     <div class="verticalSection">
                         <h3 class="sectionTitle">Connection</h3>
                         <div class="inputContainer">
                             <label class="inputLabel inputLabelUnfocused" for="ApiKey">API key (optional)</label>
                             <input id="ApiKey" name="ApiKey" type="password" is="emby-input" autocomplete="off" />
-                            <div class="fieldDescription">Optional Bearer token; when set, your pending and accepted submissions are weighted higher in results.</div>
+                            <div class="fieldDescription">Optional Bearer token; when set, your pending and accepted submissions are weighted higher in results, and requests use the signed-in rate limits (120 requests per 10 seconds, 100,000 lookups per day instead of 30 and 5,000). A key is what lets a large library scan finish in one run.</div>
                             <div id="ApiKeyValidationStatus" class="fieldDescription" style="display: none; margin-top: 0.75em; align-items: center; gap: 0.5em;"></div>
                         </div>
                         <div class="inputContainer">
@@ -90,7 +90,7 @@
                             </label>
                             <div class="fieldDescription">When enabled, items that already have segments are skipped to avoid refetching.</div>
                             <div class="fieldDescription" style="margin-top: 1em;">
-                                To ensure fair use, TheIntroDB API has rate limits. If you have a large library, scanning may be temporarily paused to respect these limits. The process will automatically resume after a cool-down period. Please be patient while your library is scanned.
+                                To ensure fair use, TheIntroDB API applies rate limits and a daily lookup budget. Anonymous installs are paced at 30 requests per 10 seconds and 5,000 lookups per day; with an API key the plugin uses the signed-in limits (120 requests per 10 seconds and 100,000 lookups per day), so a full library scan can finish in a single run. If a limit is reached, scanning pauses and resumes automatically after the cool-down period.
                             </div>
                         </div>
                         <div class="checkboxContainer checkboxContainer-withDescription">

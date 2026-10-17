@@ -9,10 +9,12 @@ namespace TheIntroDB.Api;
 public class MediaResponse
 {
     /// <summary>
-    /// Gets or sets the TMDB ID.
+    /// Gets or sets the TVDB ID. TVDB is the media's identity in v4: the response
+    /// carries this and no TMDB id, since a media with no TMDB counterpart is a
+    /// normal media rather than a fake <c>tmdb_id: 0</c>.
     /// </summary>
-    [JsonPropertyName("tmdb_id")]
-    public int TmdbId { get; set; }
+    [JsonPropertyName("tvdb_id")]
+    public int? TvdbId { get; set; }
 
     /// <summary>
     /// Gets or sets the type: "movie" or "tv".
