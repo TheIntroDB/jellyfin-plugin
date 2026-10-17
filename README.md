@@ -7,9 +7,9 @@
   <a href="https://discord.gg/INVITE"><img src="https://invidget.switchblade.xyz/INVITE"></a>
 </p> -->
 
-This plugin integrates [TheIntroDB API](https://api.theintrodb.org) with Jellyfin’s **Media Segments** feature. It fetches intro, recap, credits, and preview timestamps by TMDB ID and exposes them as Jellyfin media segments so clients can show skip buttons.
+This plugin integrates [TheIntroDB API](https://api.theintrodb.org) with Jellyfin’s **Media Segments** feature. It fetches intro, recap, credits, and preview timestamps (API v4) and exposes them as Jellyfin media segments so clients can show skip buttons.
 
-**Requirements:** Jellyfin 12+. **TMDb metadata is recommended** for best accuracy (IMDb and Tvdb works as a fallback but is less accurate for TV).
+**Requirements:** Jellyfin 12+. **TVDB metadata is recommended**: TVDB is TheIntroDB's identity, and it is what lets series with a non-default display order (DVD, alternate, absolute, …) resolve to the correct episode. TMDB and IMDb ids still work as fallbacks.
 ([10.11.6+ version](https://github.com/TheIntroDB/jellyfin-plugin/releases/tag/v1.0.7.4)]
 
 **Important:** Segments are **not** fetched when you press play. They are filled when the **Media segment scan** task runs (manually or on its schedule). Until that task has run for your library, skip intro/outro will not appear.
@@ -47,9 +47,11 @@ Ensure that `TheIntroDB/` folder contains `TheIntroDB.dll`
 
 ### Metadata Requirements
 
-**TMDb is recommended.** The plugin matches content by TMDb ID for best accuracy. Please ensure you have your content metadata source set to TMDb.
+**TVDB is recommended.** The plugin addresses media by TVDB id when one is available, then falls back to TMDB, then IMDb.
 
-IMDb and Tvdb IDs work as a fallback but are less accurate for TV episodes. The plugin will use whichever IDs are available on your items.
+The series' **display order** is sent with every episode lookup, so a show whose files follow a non-default order (e.g. Futurama under `alternate`, or any series set to DVD/absolute order) is looked up by the numbers you actually have — not another order's. The episode's own TVDB id is sent as well, which pins the exact episode record. Series with a non-default order but no TVDB id are skipped and logged once, because no other id can express the order; adding TVDB metadata to the series fixes it.
+
+IMDb and TMDB ids are less accurate for TV episodes: those requests are always read in that provider's numbering.
 
 ### Customizing Skip Button
 
@@ -67,7 +69,7 @@ Easiest way to install:
 
 TheIntroDB plugin includes some configuration options to adjust and improve your experience.
 
-- **API Key**: You can enter your TheIntroDB API key to fetch your submissions even if they're still pending and prioritize yours in the averaging calculation. The settings page validates the key server-side and shows your TheIntroDB contribution stats when the token is valid.
+- **API Key**: You can enter your TheIntroDB API key to fetch your submissions even if they're still pending and prioritize yours in the averaging calculation. It also moves requests to the signed-in rate limits (120 requests per 10 s, 100,000 lookups per day instead of 30 and 5,000), which is what lets a full library scan finish in one run. The settings page validates the key server-side and shows your TheIntroDB contribution stats when the token is valid.
 - **Selected Libraries And Shows**: Optionally limit the Media Segment Scan task from the plugin settings page. You can browse Jellyfin libraries, whitelist an entire library/folder, or pick individual series. When a filter is active, the plugin only fetches segments for items inside those selected libraries or for the selected shows.
 - **Segment Toggles**: (All enabled by default) You can disable each segment individually so they're not applied when fetching.
 - **Ignore Media That Already Has Segments**: (Enabled by default) Prevent refetching of media that already has segments. This is recommended for large libraries.
@@ -78,7 +80,7 @@ TheIntroDB plugin includes some configuration options to adjust and improve your
 
 ### Prerequisites
 
-- [.NET 9.0 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [.NET 10.0 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 
 ### Build Commands
 
@@ -89,5 +91,5 @@ dotnet build
 ### Quick Test Loop
 
 1. Build: `dotnet build`
-2. Copy: `cp TheIntroDB/bin/Debug/net9.0/TheIntroDB.dll ~/.local/share/jellyfin/plugins/TheIntroDB/` (adjust path for your OS)
+2. Copy: `cp TheIntroDB/bin/Debug/net10.0/TheIntroDB.dll ~/.local/share/jellyfin/plugins/TheIntroDB/` (adjust path for your OS)
 3. Restart Jellyfin
