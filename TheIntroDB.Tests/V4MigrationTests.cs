@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using MediaBrowser.Controller.Entities.TV;
 using TheIntroDB.Api;
 using TheIntroDB.Providers;
@@ -39,23 +40,43 @@ public class V4MigrationTests
     [InlineData("official", null)]
     [InlineData("Aired", null)]
     [InlineData("aired-order", null)]
+    [InlineData("airdate", null)]
     [InlineData("default", null)]
     [InlineData("alternate", "alternate")]
-    [InlineData("altdvd", "altdvd")]
+    [InlineData("altdvd", "dvd")]
+    [InlineData("alt-two", "alternate")]
     [InlineData("dvd", "dvd")]
     [InlineData("absolute", "absolute")]
-    [InlineData("alttwo", "alttwo")]
     [InlineData("regional", "regional")]
     public void DisplayOrderIsSentOnlyWhenItIsNotTheDefaultOrder(string? displayOrder, string? expected)
     {
         var series = new Series { DisplayOrder = displayOrder! };
-        Assert.Equal(expected, TheIntroDbSegmentProvider.GetDisplayOrder(series));
+        Assert.Equal(expected, TheIntroDbSegmentProvider.GetDisplayOrder(series, out var unsupported));
+        Assert.False(unsupported);
+    }
+
+    [Theory]
+    [InlineData("originalAirDate")]
+    [InlineData("digital")]
+    [InlineData("storyArc")]
+    [InlineData("production")]
+    [InlineData("tv")]
+    [InlineData("somethingElse")]
+    public void OrdersTheApiHasNoNameForAreReportedAsUnsupported(string displayOrder)
+    {
+        // Jellyfin's TMDB provider fills Series.DisplayOrder with its episode-group
+        // names (TmdbSeriesProvider.MapDisplayOrderToTvGroupType). Sending one as
+        // `mapping` is a 400, so the series' episodes are skipped instead.
+        var series = new Series { DisplayOrder = displayOrder };
+        Assert.Null(TheIntroDbSegmentProvider.GetDisplayOrder(series, out var unsupported));
+        Assert.True(unsupported);
     }
 
     [Fact]
     public void DisplayOrderIsNullWithoutASeries()
     {
-        Assert.Null(TheIntroDbSegmentProvider.GetDisplayOrder(null));
+        Assert.Null(TheIntroDbSegmentProvider.GetDisplayOrder(null, out var unsupported));
+        Assert.False(unsupported);
     }
 
     [Fact]
@@ -101,5 +122,21 @@ public class V4MigrationTests
         Assert.Equal(
             "?imdb_id=tt0149460",
             TheIntroDbClient.BuildMediaQuery(0, 0, "tt0149460", true, null, null, null, null, null));
+    }
+
+    [Fact]
+    public void NotFoundCacheKeyCarriesTheOrderAndThePinnedEpisodeId()
+    {
+        // Both change the answer, so neither may be dropped: a 404 recorded for one
+        // address must not suppress a later lookup of another, in particular after a
+        // series' metadata is corrected.
+        var alternate = TheIntroDbSegmentProvider.BuildNotFoundKey(false, 615, 73871, null, 7, 1, "alternate", 1051911);
+        var byDefault = TheIntroDbSegmentProvider.BuildNotFoundKey(false, 615, 73871, null, 7, 1, null, 1051911);
+        var otherPin = TheIntroDbSegmentProvider.BuildNotFoundKey(false, 615, 73871, null, 7, 1, "alternate", 8234611);
+        var noPin = TheIntroDbSegmentProvider.BuildNotFoundKey(false, 615, 73871, null, 7, 1, "alternate", null);
+
+        Assert.Equal("episode:tvdb:73871:7:1:alternate:ep1051911", alternate);
+        Assert.Equal(4, new[] { alternate, byDefault, otherPin, noPin }.Distinct().Count());
+        Assert.Equal("movie:tvdb:169", TheIntroDbSegmentProvider.BuildNotFoundKey(true, 0, 169, null, null, null, null, null));
     }
 }
