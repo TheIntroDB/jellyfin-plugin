@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -12,6 +13,7 @@ using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.MediaSegments;
 using MediaBrowser.Controller.Session;
 using MediaBrowser.Model.Configuration;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.MediaSegments;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -53,6 +55,7 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService, IDisposa
         _sessionManager.PlaybackStopped += SessionManager_PlaybackStopped;
         _sessionManager.PlaybackStart += SessionManager_PlaybackStart;
         _libraryManager.ItemAdded += LibraryManager_ItemAdded;
+        _libraryManager.ItemUpdated += LibraryManager_ItemUpdated;
         return Task.CompletedTask;
     }
 
@@ -62,6 +65,7 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService, IDisposa
         _sessionManager.PlaybackStopped -= SessionManager_PlaybackStopped;
         _sessionManager.PlaybackStart -= SessionManager_PlaybackStart;
         _libraryManager.ItemAdded -= LibraryManager_ItemAdded;
+        _libraryManager.ItemUpdated -= LibraryManager_ItemUpdated;
 
         // Signal in-flight tasks to finish and wait for them (with timeout)
         await _cts.CancelAsync().ConfigureAwait(false);
@@ -232,13 +236,72 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService, IDisposa
     private void LibraryManager_ItemAdded(object? sender, ItemChangeEventArgs e)
     {
         var item = e?.Item;
-        if (item is not Episode && item is not Movie)
+        if (!ShouldFetchOnItemAdded(item))
         {
             return;
         }
 
-        _ = TrackTaskAsync(OnDemandFetchAsync(item, "item_added", _cts.Token));
+        _ = TrackTaskAsync(OnDemandFetchAsync(item!, "item_added", _cts.Token));
     }
+
+    private void LibraryManager_ItemUpdated(object? sender, ItemChangeEventArgs e)
+    {
+        if (!ShouldFetchOnItemUpdated(e))
+        {
+            return;
+        }
+
+        _ = TrackTaskAsync(OnDemandFetchAsync(e.Item, "metadata_download", _cts.Token));
+    }
+
+    /// <summary>
+    /// Whether a newly added item is looked up right away. An episode is added before its
+    /// metadata download, often with only an IMDb id while its season/episode numbers come
+    /// from TVDB or TMDB, and the API reads them in IMDb's numbering: a wrong hit that
+    /// <see cref="PluginConfiguration.IgnoreMediaWithExistingSegments"/> then keeps. Such an
+    /// episode waits for the download (<see cref="ShouldFetchOnItemUpdated"/>).
+    /// </summary>
+    /// <param name="item">The added item.</param>
+    /// <returns>Whether to fetch now.</returns>
+    internal bool ShouldFetchOnItemAdded(BaseItem? item)
+    {
+        if (item is Movie)
+        {
+            return true;
+        }
+
+        if (item is not Episode episode)
+        {
+            return false;
+        }
+
+        if (HasSeriesIdentity(_libraryManager.GetItemById(episode.SeriesId)))
+        {
+            return true;
+        }
+
+        _logger.LogDebug("On-demand fetch deferred for {Name}: series has no TVDB or TMDB id yet", item.Name);
+        return false;
+    }
+
+    /// <summary>
+    /// Whether an updated item is looked up: after a metadata download, which is when an
+    /// item added without its ids gets them.
+    /// </summary>
+    /// <param name="e">The update.</param>
+    /// <returns>Whether to fetch now.</returns>
+    internal static bool ShouldFetchOnItemUpdated([NotNullWhen(true)] ItemChangeEventArgs? e)
+        => e?.Item is Episode or Movie
+            && e.UpdateReason.HasFlag(ItemUpdateType.MetadataDownload);
+
+    /// <summary>
+    /// Whether a series has an id the API reads episode numbers against reliably.
+    /// </summary>
+    /// <param name="series">The series, if found.</param>
+    /// <returns>Whether it has a TVDB or TMDB id.</returns>
+    internal static bool HasSeriesIdentity(BaseItem? series)
+        => series is not null
+            && (series.HasProviderId(MetadataProvider.Tvdb) || series.HasProviderId(MetadataProvider.Tmdb));
 
     private async Task OnDemandFetchAsync(BaseItem item, string trigger, CancellationToken cancellationToken)
     {
