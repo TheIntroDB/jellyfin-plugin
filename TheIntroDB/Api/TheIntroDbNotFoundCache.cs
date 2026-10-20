@@ -34,6 +34,13 @@ public sealed class TheIntroDbNotFoundCache
             dataFolderPath is null ? null : Path.Combine(dataFolderPath, "notfound-cache.json"));
     });
 
+    private static readonly Lazy<TheIntroDbNotFoundCache> RecentFetchesInstance = new(static () =>
+    {
+        var dataFolderPath = Plugin.Instance?.DataFolderPath;
+        return new TheIntroDbNotFoundCache(
+            dataFolderPath is null ? null : Path.Combine(dataFolderPath, "recent-fetches.json"));
+    });
+
     private readonly ConcurrentDictionary<string, DateTime> _entries = new(StringComparer.Ordinal);
     private readonly string? _filePath;
     private readonly ILogger _logger;
@@ -55,6 +62,12 @@ public sealed class TheIntroDbNotFoundCache
     /// Gets the shared cache instance used by the segment provider and the config page.
     /// </summary>
     public static TheIntroDbNotFoundCache Instance => SharedInstance.Value;
+
+    /// <summary>
+    /// Gets the items this plugin fetched lately, so their segments are not refreshed
+    /// before <see cref="Configuration.PluginConfiguration.RefreshAfterDays"/> passed.
+    /// </summary>
+    public static TheIntroDbNotFoundCache RecentFetches => RecentFetchesInstance.Value;
 
     /// <summary>
     /// Removes all cached not-found answers, in memory and on disk.
@@ -111,10 +124,17 @@ public sealed class TheIntroDbNotFoundCache
     /// Records a not-found answer for the given lookup identity.
     /// </summary>
     /// <param name="key">Lookup identity (e.g. "ep:tmdb:1396:1:1").</param>
-    public void RememberNotFound(string key)
+    public void RememberNotFound(string key) => Remember(key, DefaultTtl);
+
+    /// <summary>
+    /// Records an entry for the given key that holds for <paramref name="ttl"/>.
+    /// </summary>
+    /// <param name="key">Entry key.</param>
+    /// <param name="ttl">How long the entry holds.</param>
+    public void Remember(string key, TimeSpan ttl)
     {
         EnsureLoaded();
-        _entries[key] = DateTime.UtcNow.Add(DefaultTtl);
+        _entries[key] = DateTime.UtcNow.Add(ttl);
         MarkDirty();
     }
 

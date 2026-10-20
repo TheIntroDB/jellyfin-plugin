@@ -15,6 +15,7 @@ using MediaBrowser.Model.Configuration;
 using MediaBrowser.Model.MediaSegments;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using TheIntroDB.Api;
 using TheIntroDB.Configuration;
 
 namespace TheIntroDB;
@@ -79,6 +80,10 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService, IDisposa
         {
             // Swallow task exceptions during shutdown — they were already logged
         }
+
+        // Both caches otherwise only reach the disk every few hundred changes.
+        TheIntroDbNotFoundCache.Instance.Save();
+        TheIntroDbNotFoundCache.RecentFetches.Save();
 
         DisposeCts();
     }
@@ -255,18 +260,14 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService, IDisposa
                 return;
             }
 
-            if (_mediaSegmentManager.HasSegments(item.Id))
-            {
-                _logger.LogDebug("On-demand fetch skipped ({Trigger}): segments already exist for {Name}", trigger, item.Name);
-                return;
-            }
-
+            // No check for existing segments here: the provider decides, so own segments due
+            // for a refresh are fetched again and another provider's segments are kept.
             var libOptions = _libraryManager.GetLibraryOptions(item);
-            _logger.LogInformation("On-demand segment fetch triggered ({Trigger}) for {Name} ({Type})", trigger, item.Name, item.GetType().Name);
+            _logger.LogDebug("On-demand segment fetch triggered ({Trigger}) for {Name} ({Type})", trigger, item.Name, item.GetType().Name);
 
             await _mediaSegmentManager.RunSegmentPluginProviders(item, libOptions, false, cancellationToken).ConfigureAwait(false);
 
-            _logger.LogInformation("On-demand segment fetch completed ({Trigger}) for {Name}", trigger, item.Name);
+            _logger.LogDebug("On-demand segment fetch completed ({Trigger}) for {Name}", trigger, item.Name);
         }
         catch (Exception ex)
         {

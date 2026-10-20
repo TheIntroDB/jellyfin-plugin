@@ -82,4 +82,11 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets a value indicating whether to automatically fetch segments for newly added items and on playback start.
     /// </summary>
     public bool EnableOnDemandFetch { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets after how many days this plugin's own segments of an item are fetched again,
+    /// so corrected submissions arrive although <see cref="IgnoreMediaWithExistingSegments"/> is on.
+    /// 0 never refreshes them.
+    /// </summary>
+    public int RefreshAfterDays { get; set; } = 30;
 }

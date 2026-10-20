@@ -193,10 +193,16 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             return RememberNotFoundAndReturnEmpty(request);
         }
 
+        var refreshKey = $"item:{request.ItemId:N}";
         if (config.IgnoreMediaWithExistingSegments)
         {
             var segmentManager = _serviceProvider.GetRequiredService<IMediaSegmentManager>();
-            if (segmentManager.HasSegments(request.ItemId))
+            var served = (await segmentManager
+                .GetSegmentsAsync(item, null, _libraryManager.GetLibraryOptions(item), filterByProvider: true)
+                .ConfigureAwait(false)).Count();
+            var refreshDue = config.RefreshAfterDays > 0
+                && !TheIntroDbNotFoundCache.RecentFetches.TryGetHit(refreshKey);
+            if (ShouldKeepExistingSegments(request.ExistingSegments?.Count ?? 0, served, refreshDue))
             {
                 _logger.LogDebug("Skipping {Name}: already has segments (IgnoreMediaWithExistingSegments enabled)", item.Name);
                 Plugin.AnonymousUsageReporter.TrackEvent(
@@ -255,6 +261,11 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             }
 
             return GetExistingSegments(request);
+        }
+
+        if (config.RefreshAfterDays > 0)
+        {
+            TheIntroDbNotFoundCache.RecentFetches.Remember(refreshKey, RefreshTtl(config.RefreshAfterDays, Random.Shared.NextDouble()));
         }
 
         if (result.IsNotFound || result.Response is null)
@@ -323,6 +334,29 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         _logger.LogInformation("Returning {Count} segments for {Name}", segments.Count, item.Name);
         return segments;
     }
+
+    /// <summary>
+    /// Whether an item keeps its segments instead of being fetched, with
+    /// <see cref="PluginConfiguration.IgnoreMediaWithExistingSegments"/> on: when another
+    /// provider's segments are served for it, or when this plugin's own are not due for a refresh.
+    /// Segments of providers disabled in the library are not served and do not count.
+    /// </summary>
+    /// <param name="ownCount">This plugin's stored segments of the item.</param>
+    /// <param name="servedCount">The item's segments the library serves, this plugin's included.</param>
+    /// <param name="refreshDue">Whether this plugin's segments are due for a refresh.</param>
+    /// <returns>Whether to keep the existing segments.</returns>
+    internal static bool ShouldKeepExistingSegments(int ownCount, int servedCount, bool refreshDue)
+        => servedCount > ownCount || (ownCount > 0 && !refreshDue);
+
+    /// <summary>
+    /// How long a fetch holds before the item is refreshed: 75 to 125 % of the setting, so
+    /// the items of one scan do not all fall due in the same later scan.
+    /// </summary>
+    /// <param name="days">The configured refresh interval in days.</param>
+    /// <param name="jitter">A value in [0, 1).</param>
+    /// <returns>The time until the refresh.</returns>
+    internal static TimeSpan RefreshTtl(int days, double jitter)
+        => TimeSpan.FromDays(days * (0.75 + (0.5 * jitter)));
 
     /// <inheritdoc />
     public ValueTask<bool> Supports(BaseItem item)

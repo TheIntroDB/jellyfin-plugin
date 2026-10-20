@@ -29,6 +29,18 @@ public class TheIntroDbNotFoundCacheTests
     }
 
     [Fact]
+    public void RememberHoldsForTheGivenTtl()
+    {
+        var cache = new TheIntroDbNotFoundCache(null);
+
+        cache.Remember("item:a", TimeSpan.FromDays(30));
+        cache.Remember("item:b", TimeSpan.FromDays(-1));
+
+        Assert.True(cache.TryGetHit("item:a"));
+        Assert.False(cache.TryGetHit("item:b"));
+    }
+
+    [Fact]
     public void ExpiredPersistedEntriesAreDroppedOnLoad()
     {
         var path = GetTempCachePath();
