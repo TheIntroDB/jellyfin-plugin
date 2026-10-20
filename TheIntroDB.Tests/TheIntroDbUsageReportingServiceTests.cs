@@ -78,6 +78,18 @@ public class TheIntroDbUsageReportingServiceTests
         Assert.False(CreateService().ShouldFetchOnItemAdded(new Episode { SeriesId = Guid.NewGuid() }));
     }
 
+    [Fact]
+    public void ItemAdded_EpisodeWithoutSeriesId_WaitsForMetadataInsteadOfThrowing()
+    {
+        // Jellyfin's GetItemById throws on an empty id, so the lookup must not happen.
+        var libraryManager = new Mock<ILibraryManager>();
+        libraryManager.Setup(m => m.GetItemById(Guid.Empty)).Throws(new ArgumentException("Guid can't be empty", "id"));
+
+        var service = CreateService(libraryManager: libraryManager);
+
+        Assert.False(service.ShouldFetchOnItemAdded(new Episode()));
+    }
+
     [Theory]
     [InlineData(ItemUpdateType.MetadataDownload, true)]
     [InlineData(ItemUpdateType.MetadataDownload | ItemUpdateType.ImageUpdate, true)]
@@ -92,6 +104,14 @@ public class TheIntroDbUsageReportingServiceTests
     }
 
     [Fact]
+    public void ItemUpdated_MovieFetchesAfterMetadataDownload()
+    {
+        var e = new ItemChangeEventArgs { Item = new Movie(), UpdateReason = ItemUpdateType.MetadataDownload };
+
+        Assert.True(TheIntroDbUsageReportingService.ShouldFetchOnItemUpdated(e));
+    }
+
+    [Fact]
     public void ItemUpdated_Series_DoesNotFetch()
     {
         var e = new ItemChangeEventArgs { Item = new Series(), UpdateReason = ItemUpdateType.MetadataDownload };
@@ -99,9 +119,9 @@ public class TheIntroDbUsageReportingServiceTests
         Assert.False(TheIntroDbUsageReportingService.ShouldFetchOnItemUpdated(e));
     }
 
-    private static TheIntroDbUsageReportingService CreateService(BaseItem? knownItem = null)
+    private static TheIntroDbUsageReportingService CreateService(BaseItem? knownItem = null, Mock<ILibraryManager>? libraryManager = null)
     {
-        var libraryManager = new Mock<ILibraryManager>();
+        libraryManager ??= new Mock<ILibraryManager>();
         if (knownItem is not null)
         {
             libraryManager.Setup(m => m.GetItemById(knownItem.Id)).Returns(knownItem);

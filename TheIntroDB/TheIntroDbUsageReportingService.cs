@@ -259,7 +259,8 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService, IDisposa
     /// metadata download, often with only an IMDb id while its season/episode numbers come
     /// from TVDB or TMDB, and the API reads them in IMDb's numbering: a wrong hit that
     /// <see cref="PluginConfiguration.IgnoreMediaWithExistingSegments"/> then keeps. Such an
-    /// episode waits for the download (<see cref="ShouldFetchOnItemUpdated"/>).
+    /// episode waits for the download (<see cref="ShouldFetchOnItemUpdated"/>), as does one
+    /// whose series is not known at all (no series id).
     /// </summary>
     /// <param name="item">The added item.</param>
     /// <returns>Whether to fetch now.</returns>
@@ -275,7 +276,11 @@ internal sealed class TheIntroDbUsageReportingService : IHostedService, IDisposa
             return false;
         }
 
-        if (HasSeriesIdentity(_libraryManager.GetItemById(episode.SeriesId)))
+        // An episode can be added before its series is known, leaving the series id
+        // empty. GetItemById rejects an empty id with an ArgumentException, which
+        // Jellyfin would log as a failed event handler for every such episode.
+        if (episode.SeriesId != Guid.Empty
+            && HasSeriesIdentity(_libraryManager.GetItemById(episode.SeriesId)))
         {
             return true;
         }
