@@ -30,7 +30,10 @@ public class RateLimitSafetyTests
         { true, 1000L, null, false },  // intro: missing end is invalid
         { false, 1000L, null, true },  // credits: start set, end optional
         { false, null, 5000L, true },  // credits: end set, start optional (emby parity)
-        { false, null, null, false }   // neither boundary
+        { false, null, null, false },  // neither boundary
+        { false, 0L, 0L, false },      // credits/preview: 0/0 marks the segment as absent
+        { false, null, 0L, false },    // end at the start is absent too
+        { false, 2000L, 1000L, false } // end before start is invalid
     };
 
     [Theory]
