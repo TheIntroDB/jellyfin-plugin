@@ -263,20 +263,32 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
             return GetExistingSegments(request);
         }
 
+        if (result.IsNotFound)
+        {
+            if (config.RefreshAfterDays > 0)
+            {
+                TheIntroDbNotFoundCache.RecentFetches.Remember(refreshKey, RefreshTtl(config.RefreshAfterDays, Random.Shared.NextDouble()));
+            }
+
+            _logger.LogInformation("TheIntroDB API returned no data for {Name}", item.Name);
+            TheIntroDbNotFoundCache.Instance.RememberNotFound(cacheKey);
+            return Array.Empty<MediaSegmentDto>();
+        }
+
+        if (result.Response is null)
+        {
+            // A 200 without a usable body is not an empty dataset: returning empty
+            // would make Jellyfin delete the segments this plugin already stored.
+            // The fetch is not recorded either, so the next scan asks again.
+            _logger.LogWarning(
+                "TheIntroDB API returned no usable body for {Name}; preserving existing segments",
+                item.Name);
+            return GetExistingSegments(request);
+        }
+
         if (config.RefreshAfterDays > 0)
         {
             TheIntroDbNotFoundCache.RecentFetches.Remember(refreshKey, RefreshTtl(config.RefreshAfterDays, Random.Shared.NextDouble()));
-        }
-
-        if (result.IsNotFound || result.Response is null)
-        {
-            _logger.LogInformation("TheIntroDB API returned no data for {Name}", item.Name);
-            if (result.IsNotFound)
-            {
-                TheIntroDbNotFoundCache.Instance.RememberNotFound(cacheKey);
-            }
-
-            return Array.Empty<MediaSegmentDto>();
         }
 
         var media = result.Response;
