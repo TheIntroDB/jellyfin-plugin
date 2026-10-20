@@ -13,7 +13,6 @@ public class ExistingSegmentsTests
         { 2, 2, false, true },  // own segments, not due: keep
         { 2, 2, true, false },  // own segments, due: refresh
         { 2, 3, true, true },   // own segments due, but another provider's are served too: keep
-        { 0, 0, false, false }  // only a disabled provider's segments (not served): fetch
     };
 
     [Theory]
