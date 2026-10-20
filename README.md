@@ -72,7 +72,8 @@ TheIntroDB plugin includes some configuration options to adjust and improve your
 - **API Key**: You can enter your TheIntroDB API key to fetch your submissions even if they're still pending and prioritize yours in the averaging calculation. It also moves requests to the signed-in rate limits (120 requests per 10 s, 100,000 lookups per day instead of 30 and 5,000), which is what lets a full library scan finish in one run. The settings page validates the key server-side and shows your TheIntroDB contribution stats when the token is valid.
 - **Selected Libraries And Shows**: Optionally limit the Media Segment Scan task from the plugin settings page. You can browse Jellyfin libraries, whitelist an entire library/folder, or pick individual series. When a filter is active, the plugin only fetches segments for items inside those selected libraries or for the selected shows.
 - **Segment Toggles**: (All enabled by default) You can disable each segment individually so they're not applied when fetching.
-- **Ignore Media That Already Has Segments**: (Enabled by default) Prevent refetching of media that already has segments. This is recommended for large libraries.
+- **Ignore Media That Already Has Segments**: (Enabled by default) Prevent refetching of media that already has segments. This is recommended for large libraries. Only segments the library serves count: a provider disabled in the library does not block TheIntroDB.
+- **Refresh After (Days)**: (30 by default) Items with segments from TheIntroDB are fetched again after this many days, so corrected submissions arrive. Segments of other providers are never replaced. 0 never refreshes.
 
 ---
 

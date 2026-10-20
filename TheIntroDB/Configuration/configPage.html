@@ -88,17 +88,22 @@
                                 <input id="IgnoreMediaWithExistingSegments" name="IgnoreMediaWithExistingSegments" type="checkbox" is="emby-checkbox" />
                                 <span>Ignore media that already has segments</span>
                             </label>
-                            <div class="fieldDescription">When enabled, items that already have segments are skipped to avoid refetching.</div>
+                            <div class="fieldDescription">When enabled, items that already have segments are skipped to avoid refetching. Only segments the library serves count, so a provider disabled in the library does not block TheIntroDB.</div>
                             <div class="fieldDescription" style="margin-top: 1em;">
                                 To ensure fair use, TheIntroDB API applies rate limits and a daily lookup budget. Anonymous installs are paced at 30 requests per 10 seconds and 5,000 lookups per day; with an API key the plugin uses the signed-in limits (120 requests per 10 seconds and 100,000 lookups per day), so a full library scan can finish in a single run. If a limit is reached, scanning pauses and resumes automatically after the cool-down period.
                             </div>
+                        </div>
+                        <div class="inputContainer">
+                            <label class="inputLabel inputLabelUnfocused" for="RefreshAfterDays">Refresh TheIntroDB segments after (days)</label>
+                            <input id="RefreshAfterDays" name="RefreshAfterDays" type="number" min="0" step="1" is="emby-input" />
+                            <div class="fieldDescription">Items with segments from TheIntroDB are fetched again after this many days, so corrected submissions arrive. Segments of other providers are never replaced. 0 never refreshes.</div>
                         </div>
                         <div class="checkboxContainer checkboxContainer-withDescription">
                             <label class="emby-checkbox-label">
                                 <input id="EnableOnDemandFetch" name="EnableOnDemandFetch" type="checkbox" is="emby-checkbox" />
                                 <span>Automatically fetch segments on item addition</span>
                             </label>
-                            <div class="fieldDescription">When enabled, segments will be fetched for newly added items, so long as no segments exist yet.</div>
+                            <div class="fieldDescription">When enabled, segments are fetched for newly added items, after their metadata download and on playback start. Existing segments are kept or refreshed as configured above.</div>
                         </div>
                     </div>
                     <div class="verticalSection">
@@ -1268,6 +1273,7 @@
                                 document.querySelector('#EnablePreview').checked = config.EnablePreview !== false;
                                 document.querySelector('#IgnoreMediaWithExistingSegments').checked = config.IgnoreMediaWithExistingSegments !== false;
                                 document.querySelector('#EnableOnDemandFetch').checked = config.EnableOnDemandFetch !== false;
+                                document.querySelector('#RefreshAfterDays').value = config.RefreshAfterDays ?? 30;
                                 document.querySelector('#EnableAnonymousUsageReporting').checked = config.EnableAnonymousUsageReporting !== false;
                                 if (apiKeyInput.value) {
                                     return validateApiKey(apiKeyInput.value, true);
@@ -1408,6 +1414,8 @@
                             config.EnablePreview = document.querySelector('#EnablePreview').checked;
                             config.IgnoreMediaWithExistingSegments = document.querySelector('#IgnoreMediaWithExistingSegments').checked;
                             config.EnableOnDemandFetch = document.querySelector('#EnableOnDemandFetch').checked;
+                            var refreshAfterDays = parseInt(document.querySelector('#RefreshAfterDays').value, 10);
+                            config.RefreshAfterDays = isNaN(refreshAfterDays) || refreshAfterDays < 0 ? 30 : refreshAfterDays;
                             config.EnableAnonymousUsageReporting = document.querySelector('#EnableAnonymousUsageReporting').checked;
                             ApiClient.updatePluginConfiguration(pluginUniqueId, config).then(function (result) {
                                 Dashboard.processPluginConfigurationUpdateResult(result);
