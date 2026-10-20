@@ -1,0 +1,68 @@
+# Release Drafter configuration — https://github.com/release-drafter/release-drafter
+#
+# This repo uses 4-part plugin versions (1.2.0.0) in build.yaml, manifest.json and
+# in release tags, so the tag/name templates render the semver parts and append the
+# fourth component explicitly. (Jellyfin's own plugins use single-integer versions,
+# which is why their global config is not used here.)
+#
+# The release body produced here is what publish.yaml copies into manifest.json
+# when the draft is published, so it is the changelog users see in Jellyfin.
+
+tag-prefix: v
+version-template: '$MAJOR.$MINOR.$PATCH'
+name-template: 'Version $RESOLVED_VERSION.0'
+tag-template: 'v$RESOLVED_VERSION.0'
+category-template: '### $TITLE'
+
+categories:
+  - title: ':boom: Breaking changes'
+    semver-increment: major
+    when:
+      conventional:
+        breaking: true
+
+  - title: ':tada: New features'
+    semver-increment: minor
+    when:
+      conventional:
+        type: feat
+
+  - title: ':bug: Bug fixes'
+    when:
+      - conventional:
+          type: fix
+      - labels:
+          - bug
+
+  - title: ':zap: Performance and refactors'
+    when:
+      conventional:
+        types:
+          - perf
+          - refactor
+
+  - title: ':memo: Documentation'
+    when:
+      - conventional:
+          type: docs
+      - labels:
+          - documentation
+
+  - title: ':gear: Maintenance'
+    when:
+      conventional:
+        types:
+          - chore
+          - build
+          - ci
+          - test
+          - style
+          - revert
+
+  # Catch-all: an empty `when` collects the changes no category above matched.
+  - title: ':package: Other changes'
+
+template: |
+  ## What's New
+
+  $CHANGES
