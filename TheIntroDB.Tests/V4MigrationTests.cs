@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Net;
 using MediaBrowser.Controller.Entities.TV;
 using TheIntroDB.Api;
 using TheIntroDB.Providers;
@@ -122,6 +123,55 @@ public class V4MigrationTests
         Assert.Equal(
             "?imdb_id=tt0149460",
             TheIntroDbClient.BuildMediaQuery(0, 0, "tt0149460", true, null, null, null, null, null));
+    }
+
+    [Fact]
+    public void UnsupportedCoordinatesAreFinalAndNeverTransient()
+    {
+        // The provider branches on these flags, so an out-of-range season must not look
+        // like a transient error (retried forever) or like a 404.
+        var result = MediaFetchResult.Unsupported();
+        Assert.True(result.IsUnsupported);
+        Assert.False(result.IsError);
+        Assert.False(result.IsRateLimited);
+        Assert.False(result.IsNotFound);
+        Assert.Null(result.Response);
+    }
+
+    [Theory]
+    [InlineData("{\"error\":\"Invalid season. Must be between 0 and 1000\"}", true)]  // issue #39: S2024
+    [InlineData("{\"error\":\"Invalid episode. Must be between 0 and 10000\"}", true)]
+    [InlineData("{\"error\":\"invalid season. must be between 0 and 1000\"}", true)]
+    [InlineData("{\"error\":\"Invalid season format: abc\"}", false)]                  // a client bug, not a range
+    [InlineData("{\"error\":\"Invalid tvdb_id format\"}", false)]
+    [InlineData("{\"error\":\"no submissions for this media\"}", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void OnlyTheSeasonOrEpisodeRangeIsClassifiedAsUnsupportedCoordinates(string? body, bool expected)
+    {
+        // Jellyfin hands a year-based season number straight to the API, which caps a
+        // season at 1000. Only that range message is final; every other 400 (a malformed
+        // id, an unknown mapping) stays a loud error, because it is our own bug.
+        Assert.Equal(expected, TheIntroDbClient.ClassifyErrorResponse(HttpStatusCode.BadRequest, body).IsUnsupported);
+        Assert.False(TheIntroDbClient.ClassifyErrorResponse(HttpStatusCode.NotFound, body).IsUnsupported);
+        Assert.False(TheIntroDbClient.ClassifyErrorResponse(HttpStatusCode.InternalServerError, body).IsUnsupported);
+    }
+
+    [Theory]
+    [InlineData(400, "{\"error\":\"Invalid season. Must be between 0 and 1000\"}", "unsupported")]
+    [InlineData(400, "{\"error\":\"Invalid season format: \"}", "error")]
+    [InlineData(400, "{\"error\":\"Invalid imdb_id format\"}", "error")]
+    [InlineData(404, "{\"error\":\"no submissions for this media\",\"code\":\"no_submissions\"}", "not_found")]
+    [InlineData(400, "{\"error\":\"no submissions for this media\"}", "error")]
+    [InlineData(500, "{\"error\":\"internal\"}", "error")]
+    [InlineData(503, "", "error")]
+    public void ErrorResponsesKeepTheirOutcome(int statusCode, string body, string expected)
+    {
+        // The provider retries an error on every scan but suppresses a not-found or an
+        // unsupported answer, so a misclassification here either spams or hides a bug.
+        var outcome = TheIntroDbClient.ClassifyErrorResponse((HttpStatusCode)statusCode, body);
+        var actual = outcome.IsUnsupported ? "unsupported" : outcome.IsNotFound ? "not_found" : outcome.IsError ? "error" : "other";
+        Assert.Equal(expected, actual);
     }
 
     [Fact]

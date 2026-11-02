@@ -53,6 +53,8 @@ The series' **display order** is sent with every episode lookup, so a show whose
 
 IMDb and TMDB ids are less accurate for TV episodes: those requests are always read in that provider's numbering.
 
+**Year-based season numbers work.** Some series (e.g. *Tagesschau*) number their seasons by year, so Jellyfin passes a season such as `2024` to the API, which accepts a season up to `9999`. If the API a server talks to still caps a season at `1000` (an older deployment), those episodes are refused with `Invalid season. Must be between 0 and 1000`: the plugin then says so once per series instead of once per episode, stops re-asking for them until Jellyfin restarts, and keeps the segments it already has rather than deleting them.
+
 ### Customizing Skip Button
 
 You can use the File Transformation plugin to adjust the delay and timeout of Jellyfin's segment skip button.

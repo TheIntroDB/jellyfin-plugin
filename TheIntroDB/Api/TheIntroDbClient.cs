@@ -187,6 +187,36 @@ public class TheIntroDbClient
             if (!response.IsSuccessStatusCode)
             {
                 var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                var outcome = ClassifyErrorResponse(response.StatusCode, body);
+
+                if (outcome.IsUnsupported)
+                {
+                    // The season/episode numbers themselves are outside the range
+                    // /media accepts (issue #39: Jellyfin hands year-based season
+                    // numbers such as 2024 straight through, and the API caps a
+                    // season at 1000). Nothing about the caller's key or identity is
+                    // wrong and no retry can express those coordinates, so this is
+                    // final — and logged at debug, because the provider explains it
+                    // once per series instead of once per episode per scan.
+                    _logger.LogDebug(
+                        "TheIntroDB API rejected the season/episode coordinates as out of range for {Uri}: {Body}",
+                        requestUri,
+                        body);
+                    Plugin.AnonymousUsageReporter.TrackEvent(
+                        _plugin,
+                        "theintrodb_api_media_fetch",
+                        new Dictionary<string, object>
+                        {
+                            ["host"] = "jellyfin",
+                            ["result"] = "unsupported_coordinates",
+                            ["status"] = (int)response.StatusCode,
+                            ["media_type"] = isMovie ? "movie" : "episode",
+                            ["id_source"] = idSource,
+                            ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(config.ApiKey) ? 1 : 0
+                        });
+                    return outcome;
+                }
+
                 _logger.LogWarning("TheIntroDB API error response body: {Body}", string.IsNullOrEmpty(body) ? "(empty)" : body.Length > 500 ? body[..500] + "..." : body);
                 Plugin.AnonymousUsageReporter.TrackEvent(
                     _plugin,
@@ -201,12 +231,7 @@ public class TheIntroDbClient
                         ["has_theintrodb_api_key"] = !string.IsNullOrWhiteSpace(config.ApiKey) ? 1 : 0
                     });
 
-                if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-                {
-                    return MediaFetchResult.NotFound();
-                }
-
-                return MediaFetchResult.Error();
+                return outcome;
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -257,6 +282,57 @@ public class TheIntroDbClient
                 });
             return MediaFetchResult.Error();
         }
+    }
+
+    /// <summary>
+    /// Classifies a non-success <c>GET /media</c> response into the outcome the provider
+    /// branches on.
+    /// </summary>
+    /// <remarks>
+    /// 429 never reaches here — the rate-limit path above answers it. Everything that
+    /// does is either a definitive answer (no data, or coordinates this API version
+    /// cannot express) or a transient error worth retrying, and only those two
+    /// definitive shapes may suppress a later request.
+    /// </remarks>
+    /// <param name="status">The response status code.</param>
+    /// <param name="body">The response body, when one was read.</param>
+    /// <returns>The outcome for the response.</returns>
+    internal static MediaFetchResult ClassifyErrorResponse(System.Net.HttpStatusCode status, string? body)
+    {
+        if (IsUnsupportedCoordinateRejection(status, body))
+        {
+            return MediaFetchResult.Unsupported();
+        }
+
+        return status == System.Net.HttpStatusCode.NotFound
+            ? MediaFetchResult.NotFound()
+            : MediaFetchResult.Error();
+    }
+
+    /// <summary>
+    /// Classifies a non-success <c>GET /media</c> response as the API refusing the
+    /// season/episode numbers themselves rather than the request as a whole.
+    /// </summary>
+    /// <remarks>
+    /// Jellyfin numbers a year-based season series by year (Tagesschau S2024E196), and
+    /// the API caps a season at <c>constants.MaxSeasonNumber</c>. The cap is the only
+    /// thing that rejects those numbers, and it is a property of the coordinates, not
+    /// of the caller: the outcome is final for the item, so it must not be reported as
+    /// a transient error. Only the range message counts — a malformed season
+    /// (<c>Invalid season format</c>) is a client bug and stays a loud error.
+    /// </remarks>
+    /// <param name="status">The response status code.</param>
+    /// <param name="body">The response body, when one was read.</param>
+    /// <returns>True when the API rejected the season/episode range.</returns>
+    internal static bool IsUnsupportedCoordinateRejection(System.Net.HttpStatusCode status, string? body)
+    {
+        if (status != System.Net.HttpStatusCode.BadRequest || string.IsNullOrWhiteSpace(body))
+        {
+            return false;
+        }
+
+        return body.Contains("Invalid season. Must be between", StringComparison.OrdinalIgnoreCase)
+            || body.Contains("Invalid episode. Must be between", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
