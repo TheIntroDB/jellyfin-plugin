@@ -34,6 +34,16 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
     // One warning per skipped series, not per episode of it.
     private readonly ConcurrentDictionary<Guid, byte> _orderSkipsLogged = new();
 
+    // One warning per series whose season/episode numbers the API refuses, not one
+    // per episode of it (issue #39).
+    private readonly ConcurrentDictionary<Guid, byte> _coordinateSkipsLogged = new();
+
+    // Addresses (the same key the not-found cache uses) the API has refused as out of
+    // range during this session. A 400 spends rate-limit budget like any other request,
+    // so a year-based season must not be re-asked once per scan; the session boundary
+    // keeps a fixed API from being skipped forever after it starts accepting them.
+    private readonly ConcurrentDictionary<string, byte> _unsupportedCoordinates = new();
+
     /// <summary>
     /// Initializes a new instance of the <see cref="TheIntroDbSegmentProvider"/> class.
     /// </summary>
@@ -225,6 +235,17 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         }
 
         var cacheKey = BuildNotFoundKey(isMovie, tmdbId, tvdbId, imdbId, season, episode, mapping, tvdbEpisodeId);
+
+        if (_unsupportedCoordinates.ContainsKey(cacheKey))
+        {
+            // This address was already refused as out of range in this session (issue
+            // #39: a year-based season number the API caps). Re-asking would spend
+            // rate-limit budget on a known 400 for every episode of every scan, so skip
+            // the request — and keep the stored segments, unlike the not-found path,
+            // which is a definitive "the API has no data for this".
+            return GetExistingSegments(request);
+        }
+
         if (TheIntroDbNotFoundCache.Instance.TryGetHit(cacheKey))
         {
             _logger.LogDebug("Skipping {Name}: known not found in TheIntroDB (cached 404)", item.Name);
@@ -260,6 +281,22 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
                     item.Name);
             }
 
+            return GetExistingSegments(request);
+        }
+
+        if (result.IsUnsupported)
+        {
+            // The API refused the item's season/episode numbers as out of range (issue
+            // #39: Jellyfin passes a year-based season number such as 2024 straight
+            // through, and the API caps a season at 1000). Those coordinates cannot be
+            // expressed on this API version, so the outcome is final for the item and
+            // must never be treated as a transient error. Say it once per series, stop
+            // asking for the rest of the session (each ask is a 400 that spends
+            // rate-limit budget), and hand back the stored segments rather than an empty
+            // list — empty would make Jellyfin delete them.
+            var coordinatesSeries = (item as Episode)?.Series;
+            LogCoordinatesSkipOnce(coordinatesSeries?.Id ?? item.Id, coordinatesSeries?.Name ?? item.Name, season, episode);
+            _unsupportedCoordinates.TryAdd(cacheKey, 0);
             return GetExistingSegments(request);
         }
 
@@ -540,6 +577,28 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         _logger.LogWarning(
             "Skipping {Name}: the series uses a non-default display order, but Jellyfin carries no TVDB id to express it against. Add TVDB metadata to the series so the API can convert the episode numbers.",
             name);
+    }
+
+    /// <summary>
+    /// Logs a series whose season/episode numbers the API refuses, once per series
+    /// rather than once per episode (issue #39).
+    /// </summary>
+    /// <param name="seriesId">Jellyfin id of the series being skipped (the episode's id when there is no series).</param>
+    /// <param name="name">Series name, for the log line.</param>
+    /// <param name="season">The season number the API refused.</param>
+    /// <param name="episode">The episode number the API refused.</param>
+    private void LogCoordinatesSkipOnce(Guid seriesId, string? name, int? season, int? episode)
+    {
+        if (!_coordinateSkipsLogged.TryAdd(seriesId, 0))
+        {
+            return;
+        }
+
+        _logger.LogWarning(
+            "Skipping {Name}: TheIntroDB rejected S{Season}E{Episode} as out of range. API v4 accepts a season of at most 1000 and an episode of at most 10000, so year-based season numbers (e.g. S2024) cannot be requested yet. Existing segments are kept.",
+            name,
+            season,
+            episode);
     }
 
     private static HashSet<string> GetSelectedShowIds(PluginConfiguration config)
