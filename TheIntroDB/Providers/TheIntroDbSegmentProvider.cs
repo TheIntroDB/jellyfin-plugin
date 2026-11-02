@@ -595,7 +595,7 @@ public class TheIntroDbSegmentProvider : IMediaSegmentProvider
         }
 
         _logger.LogWarning(
-            "Skipping {Name}: TheIntroDB rejected S{Season}E{Episode} as out of range. API v4 accepts a season of at most 1000 and an episode of at most 10000, so year-based season numbers (e.g. S2024) cannot be requested yet. Existing segments are kept.",
+            "Skipping {Name}: TheIntroDB rejected S{Season}E{Episode} as out of range. An API that caps a season at 1000 refuses year-based season numbers (e.g. S2024); existing segments are kept.",
             name,
             season,
             episode);
