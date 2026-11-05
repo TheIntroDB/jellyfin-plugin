@@ -1,16 +1,21 @@
-# TheIntroDB – Jellyfin Plugin
+<img align="right" width="88" src="https://raw.githubusercontent.com/TheIntroDB/theintrodb-assets/main/integrations/jellyfin.png" alt="Jellyfin">
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/TheIntroDB/theintrodb-assets/main/logo-banner.png">
-</p>
-<!-- <p align="center">
-  <a href="https://discord.gg/INVITE"><img src="https://invidget.switchblade.xyz/INVITE"></a>
-</p> -->
+[![Jellyfin 12%2B](https://img.shields.io/badge/Jellyfin-12%2B-00A4DC?style=flat-square&logo=jellyfin&logoColor=4ade80&labelColor=0d0d0d)](https://jellyfin.org)
+[![License](https://img.shields.io/github/license/TheIntroDB/jellyfin-plugin?style=flat-square&logo=gnu&logoColor=4ade80&label=License&labelColor=0d0d0d&color=038939)](https://github.com/TheIntroDB/jellyfin-plugin/blob/main/LICENSE)
+
+[![Stars](https://img.shields.io/github/stars/TheIntroDB/jellyfin-plugin?style=flat-square&logo=github&logoColor=4ade80&label=Stars&labelColor=0d0d0d&color=038939)](https://github.com/TheIntroDB/jellyfin-plugin/stargazers)
+[![Issues](https://img.shields.io/github/issues/TheIntroDB/jellyfin-plugin?style=flat-square&logo=github&logoColor=4ade80&label=Issues&labelColor=0d0d0d&color=038939)](https://github.com/TheIntroDB/jellyfin-plugin/issues)
+[![Last commit](https://img.shields.io/github/last-commit/TheIntroDB/jellyfin-plugin?style=flat-square&logo=git&logoColor=4ade80&label=Last%20commit&labelColor=0d0d0d&color=038939)](https://github.com/TheIntroDB/jellyfin-plugin/commits)
+[![Discord](https://img.shields.io/discord/1457550295742812307?style=flat-square&logo=discord&logoColor=4ade80&label=Discord&labelColor=0d0d0d&color=038939)](https://discord.com/channels/1457550295742812307/1457550298255200380)
+
+### TheIntroDB – Jellyfin Plugin
+
+---
 
 This plugin integrates [TheIntroDB API](https://api.theintrodb.org) with Jellyfin’s **Media Segments** feature. It fetches intro, recap, credits, and preview timestamps (API v4) and exposes them as Jellyfin media segments so clients can show skip buttons.
 
 **Requirements:** Jellyfin 12+. **TVDB metadata is recommended**: TVDB is TheIntroDB's identity, and it is what lets series with a non-default display order (DVD, alternate, absolute, …) resolve to the correct episode. TMDB and IMDb ids still work as fallbacks.
-([10.11.6+ version](https://github.com/TheIntroDB/jellyfin-plugin/releases/tag/v1.0.7.4)]
+([10.11.6+ version](https://github.com/TheIntroDB/jellyfin-plugin/releases/tag/v1.0.7.4))
 
 **Important:** Segments are **not** fetched when you press play. They are filled when the **Media segment scan** task runs (manually or on its schedule). Until that task has run for your library, skip intro/outro will not appear.
 
@@ -96,3 +101,12 @@ dotnet build
 1. Build: `dotnet build`
 2. Copy: `cp TheIntroDB/bin/Debug/net10.0/TheIntroDB.dll ~/.local/share/jellyfin/plugins/TheIntroDB/` (adjust path for your OS)
 3. Restart Jellyfin
+
+---
+
+<p align="center">
+  <a href="https://theintrodb.org"><img src="https://raw.githubusercontent.com/TheIntroDB/theintrodb-assets/main/badge.png" alt="TheIntroDB" width="44" height="44"></a>
+  <br><br>
+  <sub><b>TheIntroDB</b> · community-submitted intro, recap, credits and preview timestamps for your media server<br>
+  <a href="https://theintrodb.org">theintrodb.org</a> · <a href="https://github.com/TheIntroDB">GitHub</a> · <a href="https://discord.com/channels/1457550295742812307/1457550298255200380">Discord</a></sub>
+</p>
