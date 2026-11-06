@@ -2,6 +2,7 @@
 
 [![Jellyfin 12%2B](https://img.shields.io/badge/Jellyfin-12%2B-00A4DC?style=flat-square&logo=jellyfin&logoColor=4ade80&labelColor=0d0d0d)](https://jellyfin.org)
 [![License](https://img.shields.io/github/license/TheIntroDB/jellyfin-plugin?style=flat-square&logo=gnu&logoColor=4ade80&label=License&labelColor=0d0d0d&color=038939)](https://github.com/TheIntroDB/jellyfin-plugin/blob/main/LICENSE)
+[![Listed on JellyWatch Hub](https://jellywatch.app/hub/theintrodb/badge.svg)](https://jellywatch.app/hub/theintrodb)
 
 [![Stars](https://img.shields.io/github/stars/TheIntroDB/jellyfin-plugin?style=flat-square&logo=github&logoColor=4ade80&label=Stars&labelColor=0d0d0d&color=038939)](https://github.com/TheIntroDB/jellyfin-plugin/stargazers)
 [![Issues](https://img.shields.io/github/issues/TheIntroDB/jellyfin-plugin?style=flat-square&logo=github&logoColor=4ade80&label=Issues&labelColor=0d0d0d&color=038939)](https://github.com/TheIntroDB/jellyfin-plugin/issues)
