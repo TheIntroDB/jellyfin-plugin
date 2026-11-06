@@ -1,4 +1,4 @@
-<img align="right" width="88" src="https://raw.githubusercontent.com/TheIntroDB/theintrodb-assets/main/integrations/jellyfin.png" alt="Jellyfin">
+<img align="right" width="88" src="https://raw.githubusercontent.com/TheIntroDB/.github/main/integrations/jellyfin.png" alt="Jellyfin">
 
 [![Jellyfin 12%2B](https://img.shields.io/badge/Jellyfin-12%2B-00A4DC?style=flat-square&logo=jellyfin&logoColor=4ade80&labelColor=0d0d0d)](https://jellyfin.org)
 [![License](https://img.shields.io/github/license/TheIntroDB/jellyfin-plugin?style=flat-square&logo=gnu&logoColor=4ade80&label=License&labelColor=0d0d0d&color=038939)](https://github.com/TheIntroDB/jellyfin-plugin/blob/main/LICENSE)
