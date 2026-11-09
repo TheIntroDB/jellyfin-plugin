@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TheIntroDB
+
 namespace TheIntroDB.Api;
 
 /// <summary>

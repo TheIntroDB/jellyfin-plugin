@@ -103,7 +103,23 @@ dotnet build
 2. Copy: `cp TheIntroDB/bin/Debug/net10.0/TheIntroDB.dll ~/.local/share/jellyfin/plugins/TheIntroDB/` (adjust path for your OS)
 3. Restart Jellyfin
 
+## License
+
+**GNU General Public License v3.0 or later** (`GPL-3.0-or-later`) — see [LICENSE](LICENSE) for the full text.
+
+> This program is free software: you can redistribute it and/or modify it under the
+> terms of the GNU General Public License as published by the Free Software
+> Foundation, either version 3 of the License, or (at your option) any later version.
+>
+> This program is distributed in the hope that it will be useful, but WITHOUT ANY
+> WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+> PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+Every source file carries `SPDX-License-Identifier: GPL-3.0-or-later`. The "or later" grant is deliberate: it lets the project adopt a future GPL version without re-licensing from every contributor.
+
 ---
+
+--
 
 <p align="center">
   <a href="https://theintrodb.org"><img src="https://raw.githubusercontent.com/TheIntroDB/theintrodb-assets/main/badge.png" alt="TheIntroDB" width="44" height="44"></a>

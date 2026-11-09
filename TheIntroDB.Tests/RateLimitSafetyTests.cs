@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TheIntroDB
+
 using System;
 using System.Net.Http;
 using System.Net.Http.Headers;

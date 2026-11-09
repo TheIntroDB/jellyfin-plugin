@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TheIntroDB
+
 using System;
 using System.Threading;
 using System.Threading.Tasks;
